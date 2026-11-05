@@ -83,24 +83,14 @@
       transition: max-width 0.4s ease;
     }
 
-    /* MODO MÓVIL FORZADO POR BOTÓN */
     body.forced-mobile-view .dashboard-container {
       max-width: 450px !important;
       padding: 5px;
     }
 
-    body.forced-mobile-view .metrics-grid {
-      grid-template-columns: 1fr !important;
-    }
-
-    body.forced-mobile-view .controls-grid {
-      grid-template-columns: 1fr !important;
-    }
-
-    body.forced-mobile-view .top-grid {
-      grid-template-columns: 1fr !important;
-    }
-
+    body.forced-mobile-view .metrics-grid,
+    body.forced-mobile-view .controls-grid,
+    body.forced-mobile-view .top-grid,
     body.forced-mobile-view .financial-grid {
       grid-template-columns: 1fr !important;
     }
@@ -225,7 +215,6 @@
     }
     .btn-flat:hover { opacity: 0.85; }
 
-    /* ESTADOS DESTACADOS ILUMINADOS PARA BOTONES DE CABECERA */
     .btn-voice.listening {
       background: #ef4444 !important;
       color: #ffffff !important;
@@ -267,6 +256,18 @@
       cursor: pointer;
     }
 
+    .btn-toggle-active {
+      background: var(--agri-green) !important;
+      color: #fff !important;
+      border-color: var(--agri-green) !important;
+    }
+
+    .btn-toggle-inactive {
+      background: rgba(239, 68, 68, 0.15) !important;
+      color: var(--agri-red) !important;
+      border-color: var(--agri-red) !important;
+    }
+
     .accordion-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -288,7 +289,6 @@
     }
 
     .accordion-header:hover { background: var(--inner-bg); }
-
     .accordion-card.open .accordion-header { border-bottom-color: var(--card-border); }
 
     .accordion-title {
@@ -520,9 +520,7 @@
       opacity: 0;
     }
 
-    .rain-drop.animating {
-      animation: rainDrop 1.1s linear infinite;
-    }
+    .rain-drop.animating { animation: rainDrop 1.1s linear infinite; }
 
     .drop-1 { left: 18px; top: 32px; animation-delay: 0s; }
     .drop-2 { left: 30px; top: 32px; animation-delay: 0.35s; }
@@ -830,7 +828,6 @@
       box-shadow: 0 0 10px var(--led-glow), 0 0 15px var(--led-on);
     }
 
-    /* ARDUINO RESPONSIVO SIN DESFASE */
     .arduino-board-wrapper {
       width: 100%;
       overflow-x: auto;
@@ -975,8 +972,6 @@
       </div>
       <div class="header-controls">
         <button id="btnThemeToggle" class="btn-theme" onclick="alternarTemaManual()" title="Cambiar Tema">☀️</button>
-        
-        <!-- BOTÓN ADAPTATIVO MÓVIL / ESCRITORIO -->
         <button id="btnDeviceMode" class="btn-flat" onclick="toggleModoDispositivo()" style="height:42px;" title="Cambiar Vista Móvil / Escritorio">📱 Móvil</button>
 
         <div class="voice-toggle-box" title="Activar/Desactivar Micrófono para Comandos de Voz">
@@ -996,7 +991,7 @@
         </div>
 
         <button id="btnVoiceMic" class="btn-flat btn-voice" onclick="toggleReconocimientoVozManualmente()" style="height:42px;">🎙️ Micro</button>
-        <button id="btnAlerts" class="btn-flat btn-alert" style="height:42px;" onclick="solicitarPermisoNotificaciones()">🔔 Alertas</button>
+        <button id="btnAlerts" class="btn-flat btn-alert" style="height:42px;" onclick="solicitarPermisoNotificaciones()">🔔 Alertas OFF</button>
         <button class="btn-flat" style="color:var(--agri-green); height:42px;" onclick="exportarCSV()">📥 CSV</button>
         <button class="btn-ble" onclick="conectarBLE()">⚡ BLE</button>
         
@@ -1098,7 +1093,6 @@
       <div class="accordion-body">
         <div class="metrics-grid">
           
-          <!-- 1. TANQUE (14L) -->
           <div class="metric-card">
             <div class="metric-title-box">
               <span style="color:#38bdf8;">🛢️</span> TANQUE (14L)
@@ -1114,7 +1108,6 @@
             </div>
           </div>
 
-          <!-- 2. HUMEDAD SUELO -->
           <div class="metric-card">
             <div class="metric-title-box">
               <span style="color:#22c55e;">🌱</span> HUMEDAD SUELO
@@ -1132,7 +1125,6 @@
             <div id="valSueloTxt" class="big-num">--%</div>
           </div>
 
-          <!-- 3. TEMPERATURA -->
           <div class="metric-card">
             <div class="metric-title-box">
               <span style="color:#ef4444;">🌡️</span> TEMPERATURA
@@ -1146,7 +1138,6 @@
             <div id="valTempTxt" class="big-num">--°C</div>
           </div>
 
-          <!-- 4. HUMEDAD AIRE -->
           <div class="metric-card">
             <div class="metric-title-box">
               <span style="color:#a855f7;">💨</span> HUMEDAD AIRE
@@ -1164,7 +1155,6 @@
             <div id="valHumAireTxt" class="big-num">--%</div>
           </div>
 
-          <!-- 5. FLUJO DE AGUA -->
           <div class="metric-card">
             <div class="metric-title-box">
               <span style="color:#3b82f6;">🚰</span> FLUJO DE AGUA
@@ -1393,7 +1383,10 @@
                 <input type="number" id="inputFertInterval" min="1" max="30" value="7">
                 <span style="font-size:0.72rem;">días</span>
               </div>
-              <button class="btn-flat" style="background:var(--agri-purple); color:#fff;" onclick="guardarFertirriego()">💾 Agendar Fertirriego</button>
+              <div style="display:flex; gap:8px;">
+                <button class="btn-flat" style="background:var(--agri-purple); color:#fff; flex:1;" onclick="guardarFertirriego()">💾 Agendar</button>
+                <button id="btnFertToggle" class="btn-flat btn-toggle-inactive" style="flex:1;" onclick="toggleFertirriegoState()">🔴 Fertirriego OFF</button>
+              </div>
             </div>
           </div>
 
@@ -1408,10 +1401,11 @@
                 <span style="font-size:0.7rem; font-weight:700;">Bloqueo Fin:</span>
                 <input type="time" id="timeBlockEnd" value="06:00">
               </div>
-              <button class="btn-flat" style="margin-top:16px; height:44px;" onclick="guardarHorarioBloqueo()">🔒 Establecer Descanso</button>
+              <button class="btn-flat" style="margin-top:16px; height:44px;" onclick="guardarHorarioBloqueo()">🔒 Estructurar Horarios</button>
+              <button id="btnBlockToggle" class="btn-flat btn-toggle-inactive" style="margin-top:16px; height:44px;" onclick="toggleHorarioBloqueoState()">🔴 Descanso OFF</button>
             </div>
             <div id="lblFertStatus" style="font-size:0.75rem; color:var(--text-sub); margin-top:10px;">
-              Próximo Fertirriego: <b>No agendado</b>
+              Próximo Fertirriego: <b>Desactivado</b>
             </div>
           </div>
 
@@ -1463,7 +1457,7 @@
     </div>
   </div>
 
-  <!-- MODAL PINES CON ENVOLTORIO RESPONSIVO -->
+  <!-- MODAL PINES -->
   <div id="modalPines" class="modal-overlay">
     <div class="modal-card">
       <div class="modal-head">
@@ -1532,10 +1526,14 @@
 
     let vozMasterActivada = false;       
     let respuestaVozHabilitada = true;   
+    let alertasActivas = false; // ESTADO GLOBAL ALERTAS PUSH
 
     let probabilidadLluviaClima = 0;
     let proximoFertirriegoFecha = null;
+    let fertirriegoActivo = false; // ESTADO FERTIRRIEGO
+    
     let horarioBloqueo = { inicio: "22:00", fin: "06:00" };
+    let horarioBloqueoActivo = false; // ESTADO HORARIOS DE DESCANSO
 
     const PATRONES_LED_MAP = {
       'PATRON_1': [
@@ -1564,7 +1562,6 @@
       ]
     };
 
-    // ALTERNAR VISTA MÓVIL Y ESCRITORIO
     function toggleModoDispositivo() {
       const isMobile = document.body.classList.toggle('forced-mobile-view');
       const btn = document.getElementById('btnDeviceMode');
@@ -1681,21 +1678,43 @@
       }
     }
 
+    // LENGUAJE NATURAL EXPANDIDO
     function procesarComandoVoz(cmd) {
-      if (cmd.includes("humedad del suelo") || cmd.includes("humedad suelo") || cmd.includes("cuanta humedad") || cmd.includes("humedad actual")) {
+      // 1. CROP SCORE Y ESTADO DEL CULTIVO
+      if (cmd.includes("score") || cmd.includes("salud del cultivo") || cmd.includes("salud de la planta") || cmd.includes("puntuacion")) {
+        let sc = document.getElementById('txtScoreVal').innerText;
+        let desc = document.getElementById('txtScoreDesc').innerText;
+        let resp = `El Crop Score actual es del ${sc}, clasificado como ${desc}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      // 2. DIAGNÓSTICO DEL SUELO Y SUSTRATO
+      else if (cmd.includes("estado del suelo") || cmd.includes("diagnostico") || cmd.includes("sustrato") || cmd.includes("salud del suelo")) {
+        let est = document.getElementById('txtEstadoSuelo').innerText;
+        let rec = document.getElementById('txtRecomendacionSuelo').innerText;
+        let resp = `Diagnóstico: ${est}. ${rec}`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      // 3. HUMEDAD DEL SUELO
+      else if (cmd.includes("humedad del suelo") || cmd.includes("humedad suelo") || cmd.includes("cuanta humedad")) {
         let hum = document.getElementById('valSueloTxt').innerText;
         let resp = `La humedad actual del suelo es de ${hum}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
-      else if (cmd.includes("temperatura")) {
+      // 4. TEMPERATURA AMBIENTAL
+      else if (cmd.includes("temperatura") || cmd.includes("clima actual") || cmd.includes("grados")) {
         let temp = document.getElementById('valTempTxt').innerText;
         let resp = `La temperatura ambiental registrada es de ${temp}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
+      // 5. HUMEDAD DEL AIRE
       else if (cmd.includes("humedad del aire") || cmd.includes("humedad aire") || cmd.includes("humedad ambiental")) {
         let haire = document.getElementById('valHumAireTxt').innerText;
         let resp = `La humedad del aire es del ${haire}.`;
@@ -1703,14 +1722,34 @@
         hablarRespuesta(resp, true);
         return;
       }
+      // 6. NIVEL DEL TANQUE Y AUTONOMÍA
       else if (cmd.includes("tanque") || cmd.includes("cuanta agua queda") || cmd.includes("nivel del agua") || cmd.includes("autonomía") || cmd.includes("autonomia")) {
         let tanq = document.getElementById('valTanqueTxt').innerText;
         let aut = document.getElementById('txtAutonomia').innerText;
-        let resp = `El tanque de agua está al ${tanq}. Quedan aproximadamente ${aut.replace('Autonomía: ', '')}.`;
+        let resp = `El tanque de reserva está al ${tanq}. Quedan aproximadamente ${aut.replace('Autonomía: ', '')}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
+      // 7. CONSUMO DE AGUA Y COSTOS OPEX
+      else if (cmd.includes("costo") || cmd.includes("consumo") || cmd.includes("gastado") || cmd.includes("opex") || cmd.includes("cuanto dinero")) {
+        let vol = document.getElementById('txtVolumenTotal').innerText;
+        let opex = document.getElementById('txtOpexSoles').innerText;
+        let resp = `Hasta el momento se han consumido ${vol} de agua con un costo operativo estimado de ${opex}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      // 8. ALERTAS Y FUGAS
+      else if (cmd.includes("alertas") || cmd.includes("fuga") || cmd.includes("seguridad")) {
+        let fuga = document.getElementById('flagFuga').innerText;
+        let piso = document.getElementById('flagPisoTanque').innerText;
+        let resp = `Estado de seguridad: Fugas ${fuga}, Nivel del tanque ${piso}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      // 9. FLUJO DE AGUA
       else if (cmd.includes("caudal") || cmd.includes("flujo")) {
         let fl = document.getElementById('valFlujoTxt').innerText;
         let resp = `El caudal de agua actual es de ${fl}.`;
@@ -1719,6 +1758,7 @@
         return;
       }
 
+      // COMANDOS DE ACCIÓN
       if (cmd.includes("encender bomba") || cmd.includes("regar")) {
         if (verificarBloqueoHoraActual()) {
           hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
@@ -2010,14 +2050,34 @@
       } catch (e) {}
     }
 
+    // BOTÓN DE ALERTAS TOGGLE ON/OFF
     function solicitarPermisoNotificaciones() {
+      const btn = document.getElementById('btnAlerts');
+      
+      if (alertasActivas) {
+        alertasActivas = false;
+        if (btn) {
+          btn.classList.remove('active-alert');
+          btn.innerText = '🔔 Alertas OFF';
+        }
+        registrarLog('🔕 Notificaciones desactivadas.', 'info');
+        hablarRespuesta("Notificaciones desactivadas.");
+        return;
+      }
+
       if ("Notification" in window) {
         Notification.requestPermission().then(p => {
           if (p === "granted") {
-            const btn = document.getElementById('btnAlerts');
-            if (btn) btn.classList.add('active-alert');
+            alertasActivas = true;
+            if (btn) {
+              btn.classList.add('active-alert');
+              btn.innerText = '🔔 Alertas ON';
+            }
             alert("¡Alertas activadas!");
             registrarLog('🔔 Permiso de notificaciones push concedido.', 'success');
+            hablarRespuesta("Alertas de notificación activadas.");
+          } else {
+            alert("Permiso de notificaciones denegado en el navegador.");
           }
         });
       }
@@ -2030,7 +2090,8 @@
         reproducirTonoAlerta();
         registrarLog(`🚨 ALERTA CRÍTICA: ${titulo} - ${mensaje}`, 'danger');
         hablarRespuesta(`${titulo}. ${mensaje}`, true);
-        if ("Notification" in window && Notification.permission === "granted") {
+        
+        if (alertasActivas && "Notification" in window && Notification.permission === "granted") {
           new Notification(titulo, { body: mensaje });
         }
       }
@@ -2093,6 +2154,24 @@
       hablarRespuesta(msg, true);
     }
 
+    // ACTIVAR / DESACTIVAR FERTIRRIEGO
+    function toggleFertirriegoState() {
+      fertirriegoActivo = !fertirriegoActivo;
+      const btn = document.getElementById('btnFertToggle');
+      if (fertirriegoActivo) {
+        btn.className = "btn-flat btn-toggle-active";
+        btn.innerText = "🟢 Fertirriego ON";
+        registrarLog('🟢 Fertirriego activado.', 'success');
+        hablarRespuesta("Fertirriego activado.");
+      } else {
+        btn.className = "btn-flat btn-toggle-inactive";
+        btn.innerText = "🔴 Fertirriego OFF";
+        document.getElementById('lblFertStatus').innerHTML = `Próximo Fertirriego: <b>Desactivado</b>`;
+        registrarLog('🔴 Fertirriego desactivado.', 'info');
+        hablarRespuesta("Fertirriego desactivado.");
+      }
+    }
+
     function guardarFertirriego() {
       const tipo = document.getElementById('selectFertilante').value;
       const dias = parseInt(document.getElementById('inputFertInterval').value) || 7;
@@ -2101,20 +2180,54 @@
       hoy.setDate(hoy.getDate() + dias);
       proximoFertirriegoFecha = hoy;
 
+      fertirriegoActivo = true;
+      const btn = document.getElementById('btnFertToggle');
+      if (btn) {
+        btn.className = "btn-flat btn-toggle-active";
+        btn.innerText = "🟢 Fertirriego ON";
+      }
+
       const txt = `Próxima aplicación de ${tipo}: ${hoy.toLocaleDateString()}`;
       document.getElementById('lblFertStatus').innerHTML = `<b>${txt}</b>`;
-      registrarLog(`📅 Fertirriego programado: ${tipo} en ${dias} días.`, 'success');
-      hablarRespuesta(`Fertirriego programado para el ${hoy.toLocaleDateString()}`);
+      registrarLog(`📅 Fertirriego agendado: ${tipo} en ${dias} días.`, 'success');
+      hablarRespuesta(`Fertirriego agendado para el ${hoy.toLocaleDateString()}`);
+    }
+
+    // ACTIVAR / DESACTIVAR HORARIOS DE DESCANSO
+    function toggleHorarioBloqueoState() {
+      horarioBloqueoActivo = !horarioBloqueoActivo;
+      const btn = document.getElementById('btnBlockToggle');
+      if (horarioBloqueoActivo) {
+        btn.className = "btn-flat btn-toggle-active";
+        btn.innerText = "🟢 Descanso ON";
+        registrarLog(`🟢 Horario de descanso activado (${horarioBloqueo.inicio} a ${horarioBloqueo.fin}).`, 'success');
+        hablarRespuesta("Horario de descanso activado.");
+      } else {
+        btn.className = "btn-flat btn-toggle-inactive";
+        btn.innerText = "🔴 Descanso OFF";
+        registrarLog('🔴 Horario de descanso desactivado.', 'info');
+        hablarRespuesta("Horario de descanso desactivado.");
+      }
     }
 
     function guardarHorarioBloqueo() {
       horarioBloqueo.inicio = document.getElementById('timeBlockStart').value;
       horarioBloqueo.fin = document.getElementById('timeBlockEnd').value;
-      registrarLog(`🔒 Horario de descanso guardado: De ${horarioBloqueo.inicio} a ${horarioBloqueo.fin}`, 'info');
-      hablarRespuesta("Horario de descanso configurado.");
+      
+      horarioBloqueoActivo = true;
+      const btn = document.getElementById('btnBlockToggle');
+      if (btn) {
+        btn.className = "btn-flat btn-toggle-active";
+        btn.innerText = "🟢 Descanso ON";
+      }
+
+      registrarLog(`🔒 Horario de descanso configurado: De ${horarioBloqueo.inicio} a ${horarioBloqueo.fin}`, 'info');
+      hablarRespuesta("Horario de descanso guardado y activado.");
     }
 
     function verificarBloqueoHoraActual() {
+      if (!horarioBloqueoActivo) return false;
+
       const ahora = new Date();
       const horaMin = ahora.getHours().toString().padStart(2, '0') + ":" + ahora.getMinutes().toString().padStart(2, '0');
       
@@ -2406,7 +2519,6 @@
       inicializarTema();
       cargarHistorialGuardado();
       
-      // Auto-detección inicial de dispositivo móvil
       if (window.innerWidth <= 600) {
         document.body.classList.add('forced-mobile-view');
         const btn = document.getElementById('btnDeviceMode');
@@ -2416,5 +2528,3 @@
   </script>
 </body>
 </html>
-
-  
