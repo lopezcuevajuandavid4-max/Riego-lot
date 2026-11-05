@@ -1,0 +1,2418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de gestión de riego automatizado</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #e0f2fe;
+      --bg-gradient: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+      --card-bg: #ffffff;
+      --card-border: #bae6fd;
+      --inner-bg: #f8fafc;
+      
+      --agri-green: #059669;
+      --agri-green-light: #d1fae5;
+      --agri-blue: #0284c7;
+      --agri-blue-light: #e0f2fe;
+      --agri-amber: #d97706;
+      --agri-red: #dc2626;
+      --agri-purple: #7c3aed;
+      
+      --text-title: #0f172a;
+      --text-sub: #475569;
+      --text-muted: #64748b;
+      --shadow-color: rgba(2, 132, 199, 0.08);
+      --log-bg: #0f172a;
+      --log-text: #f8fafc;
+
+      --led-off: #cbd5e1;
+      --led-on: #ef4444;
+      --led-glow: rgba(239, 68, 68, 0.4);
+    }
+
+    [data-theme="dark"] {
+      --bg-main: #0f172a;
+      --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --inner-bg: #0f172a;
+      
+      --agri-green: #10b981;
+      --agri-green-light: rgba(16, 185, 129, 0.15);
+      --agri-blue: #38bdf8;
+      --agri-blue-light: rgba(56, 189, 248, 0.15);
+      --agri-amber: #f59e0b;
+      --agri-red: #ef4444;
+      --agri-purple: #a855f7;
+      
+      --text-title: #f8fafc;
+      --text-sub: #94a3b8;
+      --text-muted: #64748b;
+      --shadow-color: rgba(0, 0, 0, 0.3);
+      --log-bg: #0b0f19;
+      --log-text: #f1f5f9;
+
+      --led-off: #334155;
+      --led-on: #ff4757;
+      --led-glow: rgba(255, 71, 87, 0.6);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease; }
+
+    body {
+      background: var(--bg-gradient);
+      background-attachment: fixed;
+      color: var(--text-title);
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .dashboard-container {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: max-width 0.4s ease;
+    }
+
+    /* MODO MÓVIL FORZADO POR BOTÓN */
+    body.forced-mobile-view .dashboard-container {
+      max-width: 450px !important;
+      padding: 5px;
+    }
+
+    body.forced-mobile-view .metrics-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    body.forced-mobile-view .controls-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    body.forced-mobile-view .top-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    body.forced-mobile-view .financial-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    header {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 4px 15px var(--shadow-color);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: var(--agri-blue);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: 0 4px 10px var(--shadow-color);
+    }
+
+    .brand-text h1 { font-size: 1.15rem; font-weight: 800; color: var(--text-title); }
+    .brand-text p { font-size: 0.75rem; color: var(--text-sub); font-weight: 500; }
+
+    .header-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    .voice-toggle-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      padding: 6px 12px;
+      border-radius: 20px;
+      height: 42px;
+    }
+
+    .switch-voice {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 20px;
+    }
+
+    .switch-voice input { opacity: 0; width: 0; height: 0; }
+
+    .slider-voice {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: var(--led-off);
+      transition: .3s;
+      border-radius: 20px;
+    }
+
+    .slider-voice:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider-voice { background-color: var(--agri-green); }
+    input:checked + .slider-voice:before { transform: translateX(18px); }
+
+    .badge-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid var(--agri-red);
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--agri-red);
+    }
+
+    .badge-status.connected {
+      background: var(--agri-green-light);
+      border-color: var(--agri-green);
+      color: var(--agri-green);
+    }
+
+    .badge-status.reconnecting {
+      background: rgba(217, 119, 6, 0.15);
+      border-color: var(--agri-amber);
+      color: var(--agri-amber);
+    }
+
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+    .btn-flat {
+      background: var(--inner-bg);
+      color: var(--text-title);
+      border: 1px solid var(--card-border);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: 48px;
+    }
+    .btn-flat:hover { opacity: 0.85; }
+
+    /* ESTADOS DESTACADOS ILUMINADOS PARA BOTONES DE CABECERA */
+    .btn-voice.listening {
+      background: #ef4444 !important;
+      color: #ffffff !important;
+      border-color: #fca5a5 !important;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.6);
+      animation: pulseMic 1.5s infinite alternate;
+    }
+
+    @keyframes pulseMic {
+      0% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+      100% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.9); }
+    }
+
+    .btn-alert.active-alert {
+      background: var(--agri-amber) !important;
+      color: #ffffff !important;
+      border-color: #fcd34d !important;
+      box-shadow: 0 0 10px rgba(217, 119, 6, 0.5);
+    }
+
+    .btn-theme {
+      background: var(--inner-bg);
+      color: var(--text-title);
+      border: 1px solid var(--card-border);
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+
+    .btn-ble {
+      background: var(--agri-blue);
+      color: #ffffff;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+
+    .accordion-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px var(--shadow-color);
+    }
+
+    .accordion-header {
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+      background: var(--card-bg);
+      border-bottom: 1px solid transparent;
+      transition: background-color 0.2s ease;
+    }
+
+    .accordion-header:hover { background: var(--inner-bg); }
+
+    .accordion-card.open .accordion-header { border-bottom-color: var(--card-border); }
+
+    .accordion-title {
+      font-size: 0.85rem;
+      font-weight: 800;
+      color: var(--agri-blue);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .accordion-icon {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+      transition: transform 0.3s ease;
+    }
+
+    .accordion-card.open .accordion-icon { transform: rotate(180deg); }
+
+    .accordion-body {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0, 1, 0, 1), padding 0.3s ease;
+      padding: 0 18px;
+    }
+
+    .accordion-card.open .accordion-body {
+      max-height: 2000px;
+      padding: 18px;
+      transition: max-height 0.5s ease-in-out, padding 0.3s ease;
+    }
+
+    .top-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    @media (max-width: 850px) { .top-grid { grid-template-columns: 1fr; } }
+
+    .soil-card-visual {
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .soil-illustration-box {
+      width: 110px;
+      height: 80px;
+      flex-shrink: 0;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: #78350f;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      transition: all 0.5s ease;
+    }
+
+    .soil-ground-layer {
+      width: 100%;
+      height: 40%;
+      background: linear-gradient(180deg, #57270b 0%, #3b1a07 100%);
+      transition: background 0.5s ease;
+    }
+
+    .plants-wrapper {
+      position: absolute;
+      bottom: 30%;
+      left: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-end;
+      padding: 0 8px;
+    }
+
+    .plant-stem {
+      transform-origin: bottom center;
+      animation: sway 3s ease-in-out infinite alternate;
+      transition: all 0.5s ease;
+    }
+
+    @keyframes sway {
+      0% { transform: rotate(-4deg); }
+      100% { transform: rotate(4deg); }
+    }
+
+    .score-wrapper { display: flex; align-items: center; justify-content: space-between; }
+
+    .score-circle {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      background: conic-gradient(var(--agri-green) 85%, var(--inner-bg) 0);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .score-inner {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--card-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    .flags-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+
+    .flag-card {
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    .flag-card .val { font-size: 0.8rem; font-weight: 700; color: var(--agri-green); margin-top: 4px; }
+    .flag-card .val.alert { color: var(--agri-red); }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    @media (max-width: 1024px) { .metrics-grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 650px) { .metrics-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .metric-card {
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 200px;
+    }
+
+    .metric-title-box {
+      font-size: 0.68rem;
+      font-weight: 800;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .icon-container-box {
+      width: 70px;
+      height: 75px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      margin: 4px 0;
+    }
+
+    .tank-box-exact {
+      width: 58px;
+      height: 72px;
+      border: 2.5px solid #38bdf8;
+      border-radius: 12px;
+      background: rgba(15, 23, 42, 0.1);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-end;
+    }
+
+    .tank-water-fill {
+      width: 100%;
+      height: 0%;
+      background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+      transition: height 0.6s ease;
+    }
+
+    .thermo-glass {
+      width: 22px;
+      height: 68px;
+      background: rgba(15, 23, 42, 0.08);
+      border: 2px solid var(--card-border);
+      border-radius: 12px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 2px;
+    }
+
+    [data-theme="dark"] .thermo-glass { background: rgba(255, 255, 255, 0.05); }
+
+    .thermo-bulb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #ef4444;
+      z-index: 2;
+      transition: background-color 0.5s ease;
+    }
+
+    .thermo-mercury-line {
+      width: 8px;
+      height: 20%;
+      background: #ef4444;
+      border-radius: 4px 4px 0 0;
+      margin-bottom: -4px;
+      transition: height 0.6s ease, background-color 0.5s ease;
+    }
+
+    .cloud-svg-box { position: relative; width: 62px; height: 50px; }
+    
+    .rain-drop {
+      position: absolute;
+      width: 3px;
+      height: 8px;
+      background: #38bdf8;
+      border-radius: 50%;
+      opacity: 0;
+    }
+
+    .rain-drop.animating {
+      animation: rainDrop 1.1s linear infinite;
+    }
+
+    .drop-1 { left: 18px; top: 32px; animation-delay: 0s; }
+    .drop-2 { left: 30px; top: 32px; animation-delay: 0.35s; }
+    .drop-3 { left: 42px; top: 32px; animation-delay: 0.7s; }
+
+    @keyframes rainDrop {
+      0% { transform: translateY(0); opacity: 1; }
+      70% { opacity: 0.8; }
+      100% { transform: translateY(18px); opacity: 0; }
+    }
+
+    .soil-plant-svg {
+      transition: transform 0.6s ease, filter 0.6s ease;
+      transform-origin: bottom center;
+    }
+
+    .soil-plant-svg.dry {
+      transform: scaleY(0.82) rotate(6deg);
+      filter: sepia(0.8) hue-rotate(-20deg);
+    }
+
+    .soil-plant-svg.wet {
+      transform: scaleY(1.08) rotate(0deg);
+      filter: saturate(1.4);
+    }
+
+    .flow-pipeline-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .faucet-blue-box {
+      width: 38px;
+      height: 38px;
+      background: #3b82f6;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+
+    .pipe-capsule {
+      width: 80px;
+      height: 16px;
+      background: rgba(15, 23, 42, 0.1);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      overflow: hidden;
+      padding: 2px;
+    }
+
+    [data-theme="dark"] .pipe-capsule { background: rgba(255, 255, 255, 0.05); }
+
+    .pipe-inner-flow {
+      width: 0%;
+      height: 100%;
+      background: #38bdf8;
+      border-radius: 10px;
+      transition: width 0.4s ease;
+    }
+
+    .pipe-capsule.active .pipe-inner-flow { width: 100%; }
+
+    .big-num { font-size: 1.35rem; font-weight: 800; color: var(--text-title); }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) { .controls-grid { grid-template-columns: 1fr; } }
+
+    .control-col { display: flex; flex-direction: column; height: 100%; justify-content: space-between; }
+
+    .col-header-title {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      padding: 12px 16px;
+      border-radius: 12px;
+      height: 56px;
+    }
+
+    .btn-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+
+    .btn-mode-select {
+      background: var(--inner-bg);
+      color: var(--text-title);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.8rem;
+      cursor: pointer;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.25s ease;
+    }
+
+    .btn-mode-select.active-normal {
+      background: var(--agri-blue);
+      color: #ffffff;
+      border-color: var(--agri-blue);
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+    }
+
+    .btn-mode-select.active-viaje {
+      background: var(--agri-purple);
+      color: #ffffff;
+      border-color: var(--agri-purple);
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+    }
+
+    .btn-pump-start {
+      background: var(--agri-green);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-pump-stop {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--agri-red);
+      border: 1px solid var(--agri-red);
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    select, input[type="text"], input[type="number"], input[type="time"] {
+      width: 100%;
+      height: 44px;
+      padding: 0 12px;
+      background: var(--inner-bg);
+      color: var(--text-title);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      outline: none;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+
+    .custom-sliders-box {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 10px;
+    }
+
+    input[type="range"] { width: 100%; accent-color: var(--agri-blue); cursor: pointer; }
+
+    .diag-card-btn {
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      height: 116px;
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+
+    .diag-card-btn:hover {
+      border-color: var(--agri-blue);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px var(--shadow-color);
+    }
+
+    .diag-card-title {
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: var(--text-title);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .diag-card-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 4px;
+    }
+
+    .financial-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; }
+    @media (max-width: 850px) { .financial-grid { grid-template-columns: 1fr; } }
+
+    .opex-summary-card {
+      background: var(--inner-bg);
+      border: 1px solid var(--card-border);
+      padding: 16px;
+      border-radius: 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .financial-stat {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      padding: 12px;
+      border-radius: 10px;
+    }
+
+    .financial-stat .lbl { font-size: 0.68rem; color: var(--text-sub); font-weight: 700; }
+    .financial-stat .val { font-size: 1.25rem; font-weight: 800; color: var(--text-title); margin-top: 2px; }
+
+    .chart-box { position: relative; height: 260px; width: 100%; }
+
+    .log-container {
+      background: var(--log-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      height: 150px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .log-line { display: flex; gap: 10px; line-height: 1.4; }
+    .log-time { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+    .log-msg { color: var(--log-text); }
+    .log-msg.info { color: #38bdf8; }
+    .log-msg.success { color: #34d399; }
+    .log-msg.warn { color: #fbbf24; }
+    .log-msg.danger { color: #f87171; }
+
+    .led-matrix-box {
+      background: #000000;
+      border: 3px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+    }
+
+    .led-grid-12x8 {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 6px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .led-dot {
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background-color: var(--led-off);
+      transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .led-dot.active {
+      background-color: var(--led-on);
+      box-shadow: 0 0 10px var(--led-glow), 0 0 15px var(--led-on);
+    }
+
+    /* ARDUINO RESPONSIVO SIN DESFASE */
+    .arduino-board-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      padding: 4px;
+    }
+
+    .arduino-board {
+      background: #00878f;
+      border-radius: 12px;
+      border: 3px solid #005f63;
+      padding: 14px;
+      position: relative;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+      user-select: none;
+      min-width: 420px;
+    }
+
+    .arduino-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px dashed rgba(255,255,255,0.3);
+      padding-bottom: 8px;
+    }
+
+    .arduino-title { font-size: 0.9rem; font-weight: 800; letter-spacing: 0.5px; }
+
+    .arduino-chip {
+      background: #111;
+      border: 1px solid #444;
+      border-radius: 4px;
+      padding: 6px 12px;
+      font-size: 0.65rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: #aaa;
+      text-align: center;
+      align-self: center;
+      margin: 4px 0;
+    }
+
+    .pin-strip {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+      background: rgba(0,0,0,0.25);
+      padding: 8px;
+      border-radius: 8px;
+    }
+
+    .pin-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+    }
+
+    .pin-label {
+      font-size: 0.58rem;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: #e0f2fe;
+    }
+
+    .pin-socket {
+      width: 14px;
+      height: 14px;
+      background: #1e293b;
+      border: 2px solid #64748b;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .pin-socket.active-digital {
+      background: #ef4444;
+      border-color: #fca5a5;
+      box-shadow: 0 0 8px #ef4444;
+    }
+
+    .pin-socket.active-analog {
+      background: #10b981;
+      border-color: #6ee7b7;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .pin-val {
+      font-size: 0.6rem;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: #ffffff;
+    }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 620px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-head { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--card-border); padding-bottom: 10px; }
+  </style>
+</head>
+<body>
+
+  <div class="dashboard-container" id="dashContainer">
+
+    <!-- HEADER SUPERIOR -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>
+        </div>
+        <div class="brand-text">
+          <h1>Sistema de gestión de riego automatizado</h1>
+          <p>Monitoreo IoT — Arduino Uno R4 WiFi</p>
+        </div>
+      </div>
+      <div class="header-controls">
+        <button id="btnThemeToggle" class="btn-theme" onclick="alternarTemaManual()" title="Cambiar Tema">☀️</button>
+        
+        <!-- BOTÓN ADAPTATIVO MÓVIL / ESCRITORIO -->
+        <button id="btnDeviceMode" class="btn-flat" onclick="toggleModoDispositivo()" style="height:42px;" title="Cambiar Vista Móvil / Escritorio">📱 Móvil</button>
+
+        <div class="voice-toggle-box" title="Activar/Desactivar Micrófono para Comandos de Voz">
+          <span style="font-size:0.75rem; font-weight:700;">🎙️ Escuchar</span>
+          <label class="switch-voice">
+            <input type="checkbox" id="chkVoiceMaster" onchange="gestionarSwitchVozMaster(this.checked)">
+            <span class="slider-voice"></span>
+          </label>
+        </div>
+
+        <div class="voice-toggle-box" title="Activar/Desactivar Confirmación Hablada del Asistente">
+          <span style="font-size:0.75rem; font-weight:700;">🗣️ Respuesta</span>
+          <label class="switch-voice">
+            <input type="checkbox" id="chkVoiceFeedback" checked onchange="gestionarSwitchFeedbackVoz(this.checked)">
+            <span class="slider-voice"></span>
+          </label>
+        </div>
+
+        <button id="btnVoiceMic" class="btn-flat btn-voice" onclick="toggleReconocimientoVozManualmente()" style="height:42px;">🎙️ Micro</button>
+        <button id="btnAlerts" class="btn-flat btn-alert" style="height:42px;" onclick="solicitarPermisoNotificaciones()">🔔 Alertas</button>
+        <button class="btn-flat" style="color:var(--agri-green); height:42px;" onclick="exportarCSV()">📥 CSV</button>
+        <button class="btn-ble" onclick="conectarBLE()">⚡ BLE</button>
+        
+        <div id="statusBadge" class="badge-status">
+          <span class="dot"></span> <span id="statusText">OFFLINE</span>
+          <span id="rssiVal" style="font-size:0.65rem; opacity:0.8; margin-left:2px;"></span>
+        </div>
+      </div>
+    </header>
+
+    <!-- TARJETA 1: ESTADO DEL CULTIVO -->
+    <div class="accordion-card open" id="cardSalud">
+      <div class="accordion-header" onclick="toggleAcordeon('cardSalud')">
+        <div class="accordion-title">🩺 1. Estado del Cultivo y Banderas de Seguridad</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="top-grid" style="margin-bottom: 12px;">
+          
+          <div id="soilCardContainer" class="soil-card-visual">
+            <div class="soil-illustration-box">
+              <div class="plants-wrapper">
+                <svg class="plant-stem" width="22" height="34" viewBox="0 0 24 36">
+                  <path d="M12 36 V12" stroke="#15803d" stroke-width="3" fill="none"/>
+                  <path d="M12 20 Q4 12 2 18 Q10 24 12 20 Z" fill="#22c55e"/>
+                  <path d="M12 14 Q20 6 22 12 Q14 18 12 14 Z" fill="#16a34a"/>
+                </svg>
+
+                <svg class="plant-stem" width="28" height="42" viewBox="0 0 24 40" style="animation-delay: -1.2s;">
+                  <path d="M12 40 V8" stroke="#15803d" stroke-width="3.5" fill="none"/>
+                  <path d="M12 24 Q2 14 0 22 Q8 28 12 24 Z" fill="#4ade80"/>
+                  <path d="M12 16 Q22 6 24 14 Q16 22 12 16 Z" fill="#22c55e"/>
+                  <circle cx="12" cy="7" r="4" fill="#86efac"/>
+                </svg>
+
+                <svg class="plant-stem" width="20" height="30" viewBox="0 0 24 32" style="animation-delay: -0.6s;">
+                  <path d="M12 32 V10" stroke="#15803d" stroke-width="3" fill="none"/>
+                  <path d="M12 18 Q4 10 2 16 Q10 22 12 18 Z" fill="#22c55e"/>
+                  <path d="M12 12 Q20 4 22 10 Q14 16 12 12 Z" fill="#15803d"/>
+                </svg>
+              </div>
+              <div class="soil-ground-layer"></div>
+            </div>
+
+            <div style="flex:1;">
+              <div style="font-size:0.7rem; font-weight:700; color:var(--text-sub);">DIAGNÓSTICO DEL SUSTRATO (%/L & ΔH/Δt)</div>
+              <div id="txtEstadoSuelo" style="font-size:1.05rem; font-weight:700; color:var(--agri-green); margin-top:4px;">
+                ✅ Salud de Suelo Excelente (Drenaje Óptimo)
+              </div>
+              <div id="txtRecomendacionSuelo" style="font-size:0.75rem; color:var(--text-sub); margin-top:4px;">
+                Estructura física equilibrada. Retiene y drena el agua adecuadamente.
+              </div>
+            </div>
+
+          </div>
+
+          <div class="score-wrapper" style="background:var(--inner-bg); padding:14px; border-radius:12px; border:1px solid var(--card-border);">
+            <div>
+              <div style="font-size:0.7rem; font-weight:700; color:var(--text-sub);">CROP SCORE</div>
+              <div id="txtScoreDesc" style="font-size:0.85rem; font-weight:700; color:var(--agri-green);">Confort Óptimo</div>
+            </div>
+            <div id="scoreCircle" class="score-circle">
+              <div id="txtScoreVal" class="score-inner">92%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flags-bar">
+          <div class="flag-card">
+            <div style="font-size:0.65rem; color:var(--text-sub); font-weight:700;">🛡️ TANQUE PISO</div>
+            <div id="flagPisoTanque" class="val">OK (>15%)</div>
+          </div>
+          <div class="flag-card">
+            <div style="font-size:0.65rem; color:var(--text-sub); font-weight:700;">🚫 TUBERÍA</div>
+            <div id="flagBloqueoFlujo" class="val">SIN FALLO</div>
+          </div>
+          <div class="flag-card">
+            <div style="font-size:0.65rem; color:var(--text-sub); font-weight:700;">🚨 FUGAS AGUA</div>
+            <div id="flagFuga" class="val">OK (0 L/m)</div>
+          </div>
+          <div class="flag-card">
+            <div style="font-size:0.65rem; color:var(--text-sub); font-weight:700;">⏳ CICLO RIEGO</div>
+            <div id="flagCicloRiego" class="val">REPOSO</div>
+          </div>
+          <div class="flag-card">
+            <div style="font-size:0.65rem; color:var(--text-sub); font-weight:700;">🔥 TEMP CLIMA</div>
+            <div id="flagTermico" class="val">NORMAL</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 2: CUADRO DE MANDO -->
+    <div class="accordion-card open" id="cardMetricas">
+      <div class="accordion-header" onclick="toggleAcordeon('cardMetricas')">
+        <div class="accordion-title">📊 2. Cuadro de Mando Visual y Sensores</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="metrics-grid">
+          
+          <!-- 1. TANQUE (14L) -->
+          <div class="metric-card">
+            <div class="metric-title-box">
+              <span style="color:#38bdf8;">🛢️</span> TANQUE (14L)
+            </div>
+            <div class="icon-container-box">
+              <div class="tank-box-exact">
+                <div id="tankFill" class="tank-water-fill"></div>
+              </div>
+            </div>
+            <div style="text-align:center;">
+              <div id="valTanqueTxt" class="big-num">--%</div>
+              <div id="txtAutonomia" style="font-size:0.7rem; font-weight:700; color:var(--agri-blue); margin-top:2px;">Autonomía: -- días</div>
+            </div>
+          </div>
+
+          <!-- 2. HUMEDAD SUELO -->
+          <div class="metric-card">
+            <div class="metric-title-box">
+              <span style="color:#22c55e;">🌱</span> HUMEDAD SUELO
+            </div>
+            <div class="icon-container-box">
+              <svg id="soilPlantSvg" class="soil-plant-svg" width="48" height="52" viewBox="0 0 36 40">
+                <path d="M10 32 h16 l-2 7 h-12 z" fill="#78350f"/>
+                <path d="M8 30 h20 v3 h-20 z" fill="#a16207"/>
+                <path d="M18 30 V12" stroke="#15803d" stroke-width="3" stroke-linecap="round"/>
+                <path id="leafLeft" d="M18 22 Q8 14 6 20 Q14 26 18 22 Z" fill="#22c55e"/>
+                <path id="leafRight" d="M18 16 Q28 8 30 14 Q22 20 18 16 Z" fill="#16a34a"/>
+                <circle id="sproutTop" cx="18" cy="10" r="3.5" fill="#4ade80"/>
+              </svg>
+            </div>
+            <div id="valSueloTxt" class="big-num">--%</div>
+          </div>
+
+          <!-- 3. TEMPERATURA -->
+          <div class="metric-card">
+            <div class="metric-title-box">
+              <span style="color:#ef4444;">🌡️</span> TEMPERATURA
+            </div>
+            <div class="icon-container-box">
+              <div class="thermo-glass">
+                <div id="thermoLine" class="thermo-mercury-line"></div>
+                <div id="thermoBulb" class="thermo-bulb"></div>
+              </div>
+            </div>
+            <div id="valTempTxt" class="big-num">--°C</div>
+          </div>
+
+          <!-- 4. HUMEDAD AIRE -->
+          <div class="metric-card">
+            <div class="metric-title-box">
+              <span style="color:#a855f7;">💨</span> HUMEDAD AIRE
+            </div>
+            <div class="icon-container-box">
+              <div class="cloud-svg-box">
+                <svg width="60" height="38" viewBox="0 0 36 24">
+                  <path d="M8 20 h18 a5 5 0 0 0 0 -10 a7 7 0 0 0 -13 -2 a5 5 0 0 0 -5 12 Z" fill="#38bdf8" opacity="0.95"/>
+                </svg>
+                <div id="drop1" class="rain-drop drop-1"></div>
+                <div id="drop2" class="rain-drop drop-2"></div>
+                <div id="drop3" class="rain-drop drop-3"></div>
+              </div>
+            </div>
+            <div id="valHumAireTxt" class="big-num">--%</div>
+          </div>
+
+          <!-- 5. FLUJO DE AGUA -->
+          <div class="metric-card">
+            <div class="metric-title-box">
+              <span style="color:#3b82f6;">🚰</span> FLUJO DE AGUA
+            </div>
+            <div class="icon-container-box">
+              <div class="flow-pipeline-container">
+                <div class="faucet-blue-box">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 2v6m0 0a4 4 0 0 1-4 4H4v4h16v-4h-4a4 4 0 0 1-4-4z"/>
+                  </svg>
+                </div>
+                <div id="pipeCapsule" class="pipe-capsule">
+                  <div class="pipe-inner-flow"></div>
+                </div>
+              </div>
+            </div>
+            <div id="valFlujoTxt" class="big-num">0.0 L/m</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 3: CENTRO DE COMANDO -->
+    <div class="accordion-card open" id="cardControles">
+      <div class="accordion-header" onclick="toggleAcordeon('cardControles')">
+        <div class="accordion-title">⚡ 3. Centro de Comando y Ajustes Agronómicos</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="controls-grid">
+          
+          <div class="control-col">
+            <div class="col-header-title">Actuación de Bomba</div>
+            <div class="status-row">
+              <div>
+                <span style="font-size:0.68rem; color:var(--text-sub); display:block;">Motor MOSFET:</span>
+                <span id="txtSoftStart" style="font-size:0.68rem; color:var(--agri-blue); font-weight:700;">Soft-Start Ready</span>
+              </div>
+              <span id="txtEstadoBomba" style="font-size:1.1rem; font-weight:800; color:var(--agri-red);">OFF</span>
+            </div>
+            <div class="btn-2col">
+              <button class="btn-pump-start" onclick="enviarComando('BOMBA_100')">► REGAR</button>
+              <button class="btn-pump-stop" onclick="enviarComando('BOMBA_OFF')">◼ PARAR</button>
+            </div>
+          </div>
+
+          <div class="control-col">
+            <div class="col-header-title">Perfil Agronómico y Modo</div>
+            <div>
+              <select id="selectPerfil" onchange="gestionarCambioPerfil(this.value)">
+                <option value="PERFIL:LECHUGA">🥬 Lechuga (Min 65% - Max 80%)</option>
+                <option value="PERFIL:RABANITO">🌱 Rabanito (Min 60% - Max 75%)</option>
+                <option value="PERFIL:SUCULENTAS">🌵 Suculentas (Min 15% - Max 30%)</option>
+                <option value="PERFIL:QUINUA">🌾 Quinua (Min 20% - Max 35%)</option>
+                <option value="PERFIL:HORTALIZAS">🍅 Hortalizas (Min 50% - Max 70%)</option>
+                <option value="PERFIL:ARROZ">🌾 Arroz (Min 85% - Max 98%)</option>
+                <option value="PERFIL:PERSONALIZADO">⚙️ Modo Personalizado (Sliders)</option>
+              </select>
+
+              <div id="panelSlidersPersonalizado" class="custom-sliders-box">
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                  <label style="font-size:0.72rem; font-weight:700; color:var(--text-sub); display:flex; justify-content:space-between;">
+                    <span>Humedad Mínima:</span> <span id="lblMinVal">30%</span>
+                  </label>
+                  <input type="range" id="sliderMin" min="10" max="80" value="30" oninput="actualizarSlidersPersonalizados()">
+                </div>
+                <div style="display:flex; flex-direction:column; gap:4px;">
+                  <label style="font-size:0.72rem; font-weight:700; color:var(--text-sub); display:flex; justify-content:space-between;">
+                    <span>Humedad Máxima:</span> <span id="lblMaxVal">70%</span>
+                  </label>
+                  <input type="range" id="sliderMax" min="20" max="95" value="70" oninput="actualizarSlidersPersonalizados()">
+                </div>
+              </div>
+            </div>
+
+            <div class="btn-2col">
+              <button id="btnModoViaje" class="btn-mode-select" onclick="activarModoViaje(true)">✈️ M. Viaje</button>
+              <button id="btnModoNormal" class="btn-mode-select active-normal" onclick="activarModoViaje(false)">🏠 M. Normal</button>
+            </div>
+          </div>
+
+          <div class="control-col">
+            <div class="col-header-title">Diagnóstico y Hardware</div>
+            <div class="btn-2col" style="margin-top:0;">
+              
+              <div class="diag-card-btn" onclick="abrirModal('modalLeds')">
+                <div class="diag-card-title">
+                  <span style="color:var(--agri-purple);">💡 Matriz LED</span>
+                </div>
+                <div class="diag-card-icon-box">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--agri-purple)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1.3.5 2.6 1.5 3.5.8.8 1.3 1.5 1.5 2.5"/>
+                    <path d="M9 18h6"/>
+                    <path d="M10 22h4"/>
+                  </svg>
+                </div>
+              </div>
+
+              <div class="diag-card-btn" onclick="abrirModal('modalPines')">
+                <div class="diag-card-title">
+                  <span style="color:var(--agri-blue);">🔌 Monitor Pines</span>
+                </div>
+                <div class="diag-card-icon-box">
+                  <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="var(--agri-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="4" width="16" height="16" rx="2"/>
+                    <rect x="8" y="8" width="8" height="8" rx="1"/>
+                    <path d="M2 9h2M2 15h2M20 9h2M20 15h2M9 2v2M15 2v2M9 20v2M15 20v2"/>
+                  </svg>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 4: TENDENCIA HISTÓRICA -->
+    <div class="accordion-card open" id="cardGrafico">
+      <div class="accordion-header" onclick="toggleAcordeon('cardGrafico')">
+        <div class="accordion-title">📈 4. Curva Histórica de Telemetría (Suelo, Clima)</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="chart-box"><canvas id="lineChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TARJETA 5: APARTADO FINANCIERO -->
+    <div class="accordion-card open" id="cardFinanciero">
+      <div class="accordion-header" onclick="toggleAcordeon('cardFinanciero')">
+        <div class="accordion-title">💰 5. Trazabilidad Financiera y Consumo Acumulado (OPEX)</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="financial-grid">
+          <div class="opex-summary-card">
+            <div>
+              <div style="font-size:0.72rem; font-weight:800; color:var(--agri-blue); text-transform:uppercase;">Resumen Operativo</div>
+              <div style="font-size:0.72rem; color:var(--text-sub); margin-top:2px;">Cálculo de consumo hídrico y tarifa eléctrica estimada.</div>
+            </div>
+            
+            <div class="financial-stat">
+              <div class="lbl">VOLUMEN TOTAL INYECTADO:</div>
+              <div id="txtVolumenTotal" class="val" style="color:var(--agri-blue);">0.00 L</div>
+            </div>
+
+            <div class="financial-stat">
+              <div class="lbl">ENERGÍA ESTIMADA (Wh):</div>
+              <div id="txtEnergiaTotal" class="val">0.0 Wh</div>
+            </div>
+
+            <div class="financial-stat" style="border-color:var(--agri-green);">
+              <div class="lbl" style="color:var(--agri-green);">COSTO TOTAL OPEX:</div>
+              <div id="txtOpexSoles" class="val" style="color:var(--agri-green);">S/ 0.00</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="font-size:0.72rem; font-weight:700; color:var(--text-sub); margin-bottom:6px;">CURVA DE EVOLUCIÓN DE COSTOS Y VOLUMEN</div>
+            <div class="chart-box"><canvas id="financialChart"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 6: ASISTENTE IA Y PREDICCIÓN CLIMÁTICA -->
+    <div class="accordion-card open" id="cardWeatherAI">
+      <div class="accordion-header" onclick="toggleAcordeon('cardWeatherAI')">
+        <div class="accordion-title">🌤️ 6. Asistente IA y Predicción Meteorológica</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="controls-grid">
+          
+          <div class="control-col">
+            <div class="col-header-title">Clima en Tiempo Real (OpenWeather)</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <input type="text" id="weatherCityInput" placeholder="Ciudad (ej. Lima, Madrid)" value="Lima">
+              <input type="text" id="weatherApiKeyInput" placeholder="API Key OpenWeather" value="">
+              <button class="btn-flat" style="background:var(--agri-blue); color:#fff;" onclick="consultarClimaAPI()">🌤️ Consultar Clima</button>
+            </div>
+            <div id="weatherStatusBox" style="margin-top:10px; font-size:0.75rem; color:var(--text-sub);">
+              Pronóstico: <b id="lblWeatherDesc">Sin datos</b> | Lluvia: <b id="lblRainProb">0%</b>
+            </div>
+          </div>
+
+          <div class="control-col" style="grid-column: span 2;">
+            <div class="col-header-title">Sugerencias e Informes de Voz (IA)</div>
+            <div style="background:var(--inner-bg); border:1px solid var(--card-border); padding:12px; border-radius:12px; height:100%; display:flex; flex-direction:column; justify-content:space-between;">
+              <div id="txtIASuggestion" style="font-size:0.82rem; font-weight:600; color:var(--text-title); line-height:1.4;">
+                🤖 El asistente inteligente está monitoreando las variables en tiempo real...
+              </div>
+              <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+                <button class="btn-flat" style="font-size:0.75rem; height:36px; background:var(--agri-green); color:#fff;" onclick="generarResumenDiarioHablado()">☀️ Resumen Diario</button>
+                <button class="btn-flat" style="font-size:0.75rem; height:36px;" onclick="generarRecomendacionIA()">🗣️ Reporte Diagnóstico</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 7: AGENDADOR Y FERTIRRIEGO -->
+    <div class="accordion-card open" id="cardFertirriego">
+      <div class="accordion-header" onclick="toggleAcordeon('cardFertirriego')">
+        <div class="accordion-title">📅 7. Agendador, Fertirriego y Horarios de Descanso</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div class="controls-grid">
+          
+          <div class="control-col">
+            <div class="col-header-title">Programar Fertirriego</div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <select id="selectFertilante">
+                <option value="Humus Líquido">🪱 Humus Líquido</option>
+                <option value="Compost Orgánico">🍂 Compost Orgánico</option>
+                <option value="Fertilizante NPK">🧪 Fertilizante NPK</option>
+              </select>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label style="font-size:0.72rem; font-weight:700;">Cada:</label>
+                <input type="number" id="inputFertInterval" min="1" max="30" value="7">
+                <span style="font-size:0.72rem;">días</span>
+              </div>
+              <button class="btn-flat" style="background:var(--agri-purple); color:#fff;" onclick="guardarFertirriego()">💾 Agendar Fertirriego</button>
+            </div>
+          </div>
+
+          <div class="control-col" style="grid-column: span 2;">
+            <div class="col-header-title">Horarios de Bloqueo de Riego (Prevención Hongos)</div>
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:0.7rem; font-weight:700;">Bloqueo Inicio:</span>
+                <input type="time" id="timeBlockStart" value="22:00">
+              </div>
+              <div style="display:flex; flex-direction:column; gap:4px;">
+                <span style="font-size:0.7rem; font-weight:700;">Bloqueo Fin:</span>
+                <input type="time" id="timeBlockEnd" value="06:00">
+              </div>
+              <button class="btn-flat" style="margin-top:16px; height:44px;" onclick="guardarHorarioBloqueo()">🔒 Establecer Descanso</button>
+            </div>
+            <div id="lblFertStatus" style="font-size:0.75rem; color:var(--text-sub); margin-top:10px;">
+              Próximo Fertirriego: <b>No agendado</b>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- TARJETA 8: CONSOLA DE EVENTOS -->
+    <div class="accordion-card" id="cardConsola">
+      <div class="accordion-header" onclick="toggleAcordeon('cardConsola')">
+        <div class="accordion-title">📜 8. Consola de Eventos y Registro BLE</div>
+        <span class="accordion-icon">▼</span>
+      </div>
+      <div class="accordion-body">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
+          <button class="btn-flat" style="padding:4px 8px; font-size:0.68rem; height:auto;" onclick="limpiarConsolaLogs()">Limpiar</button>
+        </div>
+        <div id="consoleLogContainer" class="log-container">
+          <div class="log-line">
+            <span class="log-time">[--:--:--]</span>
+            <span class="log-msg info">Sistema de monitoreo web preparado. Listo para conectar BLE.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MODAL MATRIZ LED -->
+  <div id="modalLeds" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 style="font-size:1rem; color:var(--text-title);">💡 Matriz LED 12x8 (Arduino Uno R4)</h3>
+        <button style="background:none; border:none; color:var(--text-title); font-size:1.2rem; cursor:pointer;" onclick="cerrarModales()">✕</button>
+      </div>
+
+      <div class="led-matrix-box">
+        <div style="font-size:0.68rem; font-weight:700; color:var(--text-sub); letter-spacing:1px; text-transform:uppercase;">Visualización en Tiempo Real</div>
+        <div id="gridLed12x8" class="led-grid-12x8"></div>
+        <div id="lblPatronActivo" style="font-size:0.75rem; font-weight:800; color:var(--agri-blue); margin-top:2px;">PATRÓN: APAGADO</div>
+      </div>
+
+      <div class="btn-2col">
+        <button class="btn-flat" onclick="seleccionarPatronLED('PATRON_1')">🔳 Cuadrícula</button>
+        <button class="btn-flat" onclick="seleccionarPatronLED('PATRON_2')">🖼️ Marco</button>
+        <button class="btn-flat" onclick="seleccionarPatronLED('PATRON_3')">😊 Carita Feliz</button>
+        <button class="btn-flat" style="color:var(--agri-red);" onclick="seleccionarPatronLED('PATRON_OFF')">💡 Apagar LEDs</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL PINES CON ENVOLTORIO RESPONSIVO -->
+  <div id="modalPines" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 style="font-size:1rem; color:var(--text-title);">🔌 Monitor Gráfico de Pines (Arduino Uno R4)</h3>
+        <button style="background:none; border:none; color:var(--text-title); font-size:1.2rem; cursor:pointer;" onclick="cerrarModales()">✕</button>
+      </div>
+
+      <div class="arduino-board-wrapper">
+        <div class="arduino-board">
+          <div class="arduino-header">
+            <div class="arduino-title">ARDUINO UNO R4 WiFi</div>
+            <div style="font-size:0.65rem; color:#80e5ff; font-weight:700;">PWR <span style="display:inline-block; width:8px; height:8px; background:#10b981; border-radius:50%; margin-left:2px; box-shadow:0 0 6px #10b981;"></span></div>
+          </div>
+
+          <div style="font-size:0.62rem; color:#d1fae5; font-weight:700;">PINES DIGITALES & PWM (0 - 13)</div>
+          <div class="pin-strip">
+            <div class="pin-node"><span class="pin-label">D13</span><div id="sock_D13" class="pin-socket"></div><span id="v_D13" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D12</span><div id="sock_D12" class="pin-socket"></div><span id="v_D12" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D11</span><div id="sock_D11" class="pin-socket"></div><span id="v_D11" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D10</span><div id="sock_D10" class="pin-socket"></div><span id="v_D10" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D9</span><div id="sock_D9" class="pin-socket"></div><span id="v_D9" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D8</span><div id="sock_D8" class="pin-socket"></div><span id="v_D8" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D7</span><div id="sock_D7" class="pin-socket"></div><span id="v_D7" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D6 (Echo)</span><div id="sock_D6" class="pin-socket"></div><span id="v_D6" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D5 (Trig)</span><div id="sock_D5" class="pin-socket"></div><span id="v_D5" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D4 (DHT)</span><div id="sock_D4" class="pin-socket"></div><span id="v_D4" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label" style="color:#6ee7b7;">D3 (MOSFET)</span><div id="sock_D3" class="pin-socket"></div><span id="v_D3" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D2 (Flujo)</span><div id="sock_D2" class="pin-socket"></div><span id="v_D2" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D1 (TX)</span><div id="sock_D1" class="pin-socket"></div><span id="v_D1" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">D0 (RX)</span><div id="sock_D0" class="pin-socket"></div><span id="v_D0" class="pin-val">0</span></div>
+          </div>
+
+          <div class="arduino-chip">RA4M1 ARM CORTEX M4 — ESP32-S3 BLE/WIFI</div>
+
+          <div style="font-size:0.62rem; color:#bae6fd; font-weight:700;">PINES ANALÓGICOS (A0 - A5) & POWER</div>
+          <div class="pin-strip">
+            <div class="pin-node"><span class="pin-label" style="color:#38bdf8;">A0 (Suelo)</span><div id="sock_A0" class="pin-socket"></div><span id="v_A0" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">A1</span><div id="sock_A1" class="pin-socket"></div><span id="v_A1" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">A2</span><div id="sock_A2" class="pin-socket"></div><span id="v_A2" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">A3</span><div id="sock_A3" class="pin-socket"></div><span id="v_A3" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">A4</span><div id="sock_A4" class="pin-socket"></div><span id="v_A4" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label">A5</span><div id="sock_A5" class="pin-socket"></div><span id="v_A5" class="pin-val">0</span></div>
+            <div class="pin-node"><span class="pin-label" style="color:#f87171;">5V</span><div class="pin-socket" style="background:#ef4444;"></div><span class="pin-val">5.0V</span></div>
+            <div class="pin-node"><span class="pin-label" style="color:#fbbf24;">3.3V</span><div class="pin-socket" style="background:#f59e0b;"></div><span class="pin-val">3.3V</span></div>
+            <div class="pin-node"><span class="pin-label" style="color:#94a3b8;">GND</span><div class="pin-socket" style="background:#000;"></div><span class="pin-val">0.0V</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
+    const CHARACTERISTIC_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
+
+    let bluetoothDevice;
+    let bluetoothCharacteristic;
+    let historialDatos = [];
+    let ultimaAlertaTime = 0;
+    let volAcumuladoL = 0;
+    let recognition;
+    let isListening = false;
+    let lineChart;
+    let financialChart;
+    let autoReconnectActive = false;
+
+    let vozMasterActivada = false;       
+    let respuestaVozHabilitada = true;   
+
+    let probabilidadLluviaClima = 0;
+    let proximoFertirriegoFecha = null;
+    let horarioBloqueo = { inicio: "22:00", fin: "06:00" };
+
+    const PATRONES_LED_MAP = {
+      'PATRON_1': [
+        [1,0,1,0,1,0,1,0,1,0,1,0],[0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,0,1,0,1,0,1,0,1,0],[0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,0,1,0,1,0,1,0,1,0],[0,1,0,1,0,1,0,1,0,1,0,1],
+        [1,0,1,0,1,0,1,0,1,0,1,0],[0,1,0,1,0,1,0,1,0,1,0,1]
+      ],
+      'PATRON_2': [
+        [1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1]
+      ],
+      'PATRON_3': [
+        [0,0,0,0,0,0,0,0,0,0,0,0],[0,0,1,1,0,0,0,0,1,1,0,0],
+        [0,0,1,1,0,0,0,0,1,1,0,0],[0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0,0,0,0,1],
+        [0,1,1,1,1,1,1,1,1,1,1,0],[0,0,0,0,0,0,0,0,0,0,0,0]
+      ],
+      'PATRON_OFF': [
+        [0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0]
+      ]
+    };
+
+    // ALTERNAR VISTA MÓVIL Y ESCRITORIO
+    function toggleModoDispositivo() {
+      const isMobile = document.body.classList.toggle('forced-mobile-view');
+      const btn = document.getElementById('btnDeviceMode');
+      if (btn) btn.innerText = isMobile ? '🖥️ Escritorio' : '📱 Móvil';
+      
+      setTimeout(() => {
+        if (lineChart) lineChart.resize();
+        if (financialChart) financialChart.resize();
+      }, 300);
+    }
+
+    function gestionarSwitchVozMaster(activado) {
+      vozMasterActivada = activado;
+      localStorage.setItem('vozMasterState', activado ? 'true' : 'false');
+
+      if (activado) {
+        registrarLog('🎙️ Micrófono para dictado ACTIVADO.', 'success');
+        hablarRespuesta("Reconocimiento de voz activado.", true);
+        iniciarEscuchaAlwaysOn();
+      } else {
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (recognition) recognition.stop();
+        registrarLog('🔇 Micrófono DESACTIVADO.', 'info');
+      }
+    }
+
+    function gestionarSwitchFeedbackVoz(activado) {
+      respuestaVozHabilitada = activado;
+      localStorage.setItem('vozFeedbackState', activado ? 'true' : 'false');
+      registrarLog(`🗣️ Respuesta hablada: ${activado ? 'ACTIVADA' : 'SILENCIADA'}`, 'info');
+      if (activado) hablarRespuesta("Respuesta hablada activada.", true);
+    }
+
+    function hablarRespuesta(texto, forzar = false) {
+      if (!respuestaVozHabilitada && !forzar) return;
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(texto);
+        utterance.lang = 'es-ES';
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function initReconocimientoVoz() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return;
+
+      recognition = new SpeechRecognition();
+      recognition.lang = 'es-ES';
+      recognition.continuous = true;
+
+      recognition.onstart = () => {
+        isListening = true;
+        const btn = document.getElementById('btnVoiceMic');
+        if (btn) { btn.classList.add('listening'); btn.innerText = "🎙️ Escuchando..."; }
+      };
+
+      recognition.onend = () => {
+        isListening = false;
+        const btn = document.getElementById('btnVoiceMic');
+        if (btn) { btn.classList.remove('listening'); btn.innerText = "🎙️ Micro"; }
+        
+        if (vozMasterActivada) {
+          setTimeout(() => { try { recognition.start(); } catch(e){} }, 1000);
+        }
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase().trim();
+        registrarLog(`🎙️ Voz captada: "${transcript}"`, 'info');
+
+        if (transcript.includes("hola riego") || transcript.includes("hey arduino") || transcript.includes("asistente")) {
+          hablarRespuesta("Te escucho, ¿qué necesitas?", true);
+          return;
+        }
+
+        procesarComandoVoz(transcript);
+      };
+    }
+
+    function iniciarEscuchaAlwaysOn() {
+      if (!recognition) initReconocimientoVoz();
+      if (recognition && !isListening) {
+        try { recognition.start(); } catch(e){}
+      }
+    }
+
+    function toggleReconocimientoVozManualmente() {
+      if (!vozMasterActivada) {
+        alert("Primero activa el switch '🎙️ Escuchar' en la barra superior.");
+        return;
+      }
+      if (!recognition) initReconocimientoVoz();
+      if (isListening) { recognition.stop(); } else { recognition.start(); }
+    }
+
+    function activarModoViaje(activar) {
+      const btnViaje = document.getElementById('btnModoViaje');
+      const btnNormal = document.getElementById('btnModoNormal');
+      
+      if (activar) {
+        enviarComando('VIAJE_ON');
+        btnViaje.className = "btn-mode-select active-viaje";
+        btnNormal.className = "btn-mode-select";
+        registrarLog('✈️ MODO VIAJE ACTIVADO', 'success');
+        hablarRespuesta("Modo viaje activado.");
+      } else {
+        enviarComando('VIAJE_OFF');
+        btnViaje.className = "btn-mode-select";
+        btnNormal.className = "btn-mode-select active-normal";
+        registrarLog('🏠 MODO NORMAL ACTIVADO', 'info');
+        hablarRespuesta("Modo normal activado.");
+      }
+    }
+
+    function procesarComandoVoz(cmd) {
+      if (cmd.includes("humedad del suelo") || cmd.includes("humedad suelo") || cmd.includes("cuanta humedad") || cmd.includes("humedad actual")) {
+        let hum = document.getElementById('valSueloTxt').innerText;
+        let resp = `La humedad actual del suelo es de ${hum}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      else if (cmd.includes("temperatura")) {
+        let temp = document.getElementById('valTempTxt').innerText;
+        let resp = `La temperatura ambiental registrada es de ${temp}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      else if (cmd.includes("humedad del aire") || cmd.includes("humedad aire") || cmd.includes("humedad ambiental")) {
+        let haire = document.getElementById('valHumAireTxt').innerText;
+        let resp = `La humedad del aire es del ${haire}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      else if (cmd.includes("tanque") || cmd.includes("cuanta agua queda") || cmd.includes("nivel del agua") || cmd.includes("autonomía") || cmd.includes("autonomia")) {
+        let tanq = document.getElementById('valTanqueTxt').innerText;
+        let aut = document.getElementById('txtAutonomia').innerText;
+        let resp = `El tanque de agua está al ${tanq}. Quedan aproximadamente ${aut.replace('Autonomía: ', '')}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+      else if (cmd.includes("caudal") || cmd.includes("flujo")) {
+        let fl = document.getElementById('valFlujoTxt').innerText;
+        let resp = `El caudal de agua actual es de ${fl}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+
+      if (cmd.includes("encender bomba") || cmd.includes("regar")) {
+        if (verificarBloqueoHoraActual()) {
+          hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
+          return;
+        }
+        enviarComando('BOMBA_100'); 
+        hablarRespuesta("Encendiendo bomba de riego."); 
+      }
+      else if (cmd.includes("apagar bomba") || cmd.includes("parar")) { 
+        enviarComando('BOMBA_OFF'); 
+        hablarRespuesta("Bomba apagada."); 
+      }
+      else if (cmd.includes("lechuga")) { 
+        gestionarCambioPerfil("PERFIL:LECHUGA"); 
+        hablarRespuesta("Perfil lechuga activado."); 
+      }
+      else if (cmd.includes("rabanito")) { 
+        gestionarCambioPerfil("PERFIL:RABANITO"); 
+        hablarRespuesta("Perfil rabanito activado."); 
+      }
+      else if (cmd.includes("suculentas")) { 
+        gestionarCambioPerfil("PERFIL:SUCULENTAS"); 
+        hablarRespuesta("Perfil suculentas activado."); 
+      }
+      else if (cmd.includes("quinua")) { 
+        gestionarCambioPerfil("PERFIL:QUINUA"); 
+        hablarRespuesta("Perfil quinua activado."); 
+      }
+      else if (cmd.includes("hortalizas")) { 
+        gestionarCambioPerfil("PERFIL:HORTALIZAS"); 
+        hablarRespuesta("Perfil hortalizas activado."); 
+      }
+      else if (cmd.includes("arroz")) { 
+        gestionarCambioPerfil("PERFIL:ARROZ"); 
+        hablarRespuesta("Perfil arroz activado."); 
+      }
+      else if (cmd.includes("modo viaje")) { 
+        activarModoViaje(true); 
+      }
+      else if (cmd.includes("modo normal")) { 
+        activarModoViaje(false); 
+      }
+      else if (cmd.includes("resumen del día") || cmd.includes("resumen diario")) { 
+        generarResumenDiarioHablado(); 
+      }
+      else if (cmd.includes("reporte") || cmd.includes("diagnóstico")) { 
+        generarRecomendacionIA(); 
+      }
+      else if (cmd.includes("conectar bluetooth")) { 
+        conectarBLE(); 
+      }
+      else if (cmd.includes("exportar datos")) { 
+        exportarCSV(); 
+      }
+      else if (cmd.includes("mostrar pines") || cmd.includes("estado de los pines")) { 
+        abrirModal('modalPines'); 
+        hablarRespuesta("Abriendo monitor gráfico de pines.", true);
+      }
+      else if (cmd.includes("cerrar ventanas")) { 
+        cerrarModales(); 
+      }
+    }
+
+    function gestionarCambioPerfil(val) {
+      const select = document.getElementById('selectPerfil');
+      if (select) select.value = val;
+      
+      const panelSliders = document.getElementById('panelSlidersPersonalizado');
+      if (val === "PERFIL:PERSONALIZADO") {
+        if (panelSliders) panelSliders.style.display = 'flex';
+        actualizarSlidersPersonalizados();
+      } else {
+        if (panelSliders) panelSliders.style.display = 'none';
+        enviarComando(val);
+      }
+    }
+
+    function generarResumenDiarioHablado() {
+      let saludo = "Buenos días. ";
+      const hora = new Date().getHours();
+      if (hora >= 12 && hora < 19) saludo = "Buenas tardes. ";
+      else if (hora >= 19) saludo = "Buenas noches. ";
+
+      let pctTanqueActual = document.getElementById('valTanqueTxt').innerText.replace('%','');
+      let autTxt = document.getElementById('txtAutonomia').innerText.replace('Autonomía: ', '');
+      let resumen = `${saludo} Hoy se han consumido ${volAcumuladoL.toFixed(1)} litros de agua. El tanque de reserva está al ${pctTanqueActual} por ciento con una autonomía estimada de ${autTxt}.`;
+
+      document.getElementById('txtIASuggestion').innerText = "☀️ " + resumen;
+      registrarLog(`☀️ Resumen Diario emitido: ${resumen}`, 'info');
+      hablarRespuesta(resumen, true);
+    }
+
+    function crearGrillaLED12x8() {
+      const grid = document.getElementById('gridLed12x8');
+      if (!grid) return;
+      grid.innerHTML = '';
+      for (let i = 0; i < 96; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'led-dot';
+        dot.id = `led_${i}`;
+        grid.appendChild(dot);
+      }
+    }
+
+    function renderizarMatrizLED(nombrePatron) {
+      const matrixData = PATRONES_LED_MAP[nombrePatron] || PATRONES_LED_MAP['PATRON_OFF'];
+      const lbl = document.getElementById('lblPatronActivo');
+      if (lbl) lbl.innerText = `PATRÓN: ${nombrePatron.replace('_', ' ')}`;
+
+      let index = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 12; c++) {
+          const dot = document.getElementById(`led_${index}`);
+          if (dot) {
+            if (matrixData[r][c] === 1) dot.classList.add('active');
+            else dot.classList.remove('active');
+          }
+          index++;
+        }
+      }
+    }
+
+    function seleccionarPatronLED(cmd) { renderizarMatrizLED(cmd); enviarComando(cmd); }
+
+    function actualizarPinesBoard(humSuelo, caudal, pwmBomba) {
+      const sockA0 = document.getElementById('sock_A0');
+      const valA0 = document.getElementById('v_A0');
+      if (sockA0 && valA0) {
+        valA0.innerText = `${Math.round(humSuelo)}%`;
+        if (humSuelo > 0) sockA0.classList.add('active-analog');
+        else sockA0.classList.remove('active-analog');
+      }
+
+      const sockD2 = document.getElementById('sock_D2');
+      const valD2 = document.getElementById('v_D2');
+      if (sockD2 && valD2) {
+        valD2.innerText = caudal > 0.1 ? 'PULSO' : 'LOW';
+        if (caudal > 0.1) sockD2.classList.add('active-digital');
+        else sockD2.classList.remove('active-digital');
+      }
+
+      const sockD3 = document.getElementById('sock_D3');
+      const valD3 = document.getElementById('v_D3');
+      if (sockD3 && valD3) {
+        valD3.innerText = pwmBomba > 0 ? `${pwmBomba}` : 'OFF';
+        if (pwmBomba > 0) sockD3.classList.add('active-digital');
+        else sockD3.classList.remove('active-digital');
+      }
+
+      const sockD4 = document.getElementById('sock_D4');
+      const valD4 = document.getElementById('v_D4');
+      if (sockD4 && valD4) {
+        valD4.innerText = 'OK';
+        sockD4.classList.add('active-digital');
+      }
+    }
+
+    function toggleAcordeon(idCard) {
+      const card = document.getElementById(idCard);
+      if (!card) return;
+      card.classList.toggle('open');
+      if (card.classList.contains('open')) {
+        setTimeout(() => {
+          if (idCard === 'cardGrafico' && lineChart) lineChart.resize();
+          if (idCard === 'cardFinanciero' && financialChart) financialChart.resize();
+        }, 300);
+      }
+    }
+
+    function registrarLog(mensaje, tipo = 'info') {
+      const container = document.getElementById('consoleLogContainer');
+      if (!container) return;
+      const hora = new Date().toLocaleTimeString();
+      const divLine = document.createElement('div');
+      divLine.className = 'log-line';
+      divLine.innerHTML = `<span class="log-time">[${hora}]</span><span class="log-msg ${tipo}">${mensaje}</span>`;
+      container.appendChild(divLine);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function limpiarConsolaLogs() {
+      const container = document.getElementById('consoleLogContainer');
+      if (container) container.innerHTML = '';
+      registrarLog('Consola limpiada por el usuario.', 'info');
+    }
+
+    function configurarAutoReconexion(device) {
+      device.addEventListener('gattserverdisconnected', async () => {
+        const badge = document.getElementById('statusBadge');
+        const txt = document.getElementById('statusText');
+        badge.className = 'badge-status reconnecting';
+        txt.innerText = 'RECONECTANDO...';
+        registrarLog('⚠️ Conexión Bluetooth perdida. Intentando re-vincular...', 'warn');
+        hablarRespuesta("Atención: Conexión Bluetooth perdida. Intentando reconectar.", true);
+
+        let intentos = 0;
+        autoReconnectActive = true;
+        while (intentos < 5 && autoReconnectActive) {
+          try {
+            intentos++;
+            await new Promise(res => setTimeout(res, 2500));
+            const server = await device.gatt.connect();
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            bluetoothCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+            await bluetoothCharacteristic.startNotifications();
+            bluetoothCharacteristic.addEventListener('characteristicvaluechanged', recibirTelemetria);
+
+            badge.className = 'badge-status connected';
+            txt.innerText = 'ONLINE';
+            autoReconnectActive = false;
+            registrarLog('✅ Reconexión Bluetooth restablecida exitosamente.', 'success');
+            hablarRespuesta("Reconexión Bluetooth exitosa.", true);
+            return;
+          } catch (e) {
+            registrarLog(`Intento de reconexión ${intentos}/5 fallido...`, 'warn');
+          }
+        }
+
+        if (autoReconnectActive) {
+          badge.className = 'badge-status';
+          txt.innerText = 'OFFLINE';
+          autoReconnectActive = false;
+          registrarLog('❌ Fallo definitivo de reconexión BLE.', 'danger');
+          hablarRespuesta("No se pudo restablecer la conexión Bluetooth.", true);
+        }
+      });
+    }
+
+    function inicializarTema() {
+      const temaGuardado = localStorage.getItem('theme');
+      if (temaGuardado) { aplicarTema(temaGuardado); } 
+      else {
+        const prefiereOscuro = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        aplicarTema(prefiereOscuro ? 'dark' : 'light');
+      }
+
+      const vozMasterGuardada = localStorage.getItem('vozMasterState');
+      if (vozMasterGuardada === 'true') {
+        document.getElementById('chkVoiceMaster').checked = true;
+        gestionarSwitchVozMaster(true);
+      }
+
+      const vozFeedbackGuardado = localStorage.getItem('vozFeedbackState');
+      if (vozFeedbackGuardado !== null) {
+        const est = vozFeedbackGuardado === 'true';
+        document.getElementById('chkVoiceFeedback').checked = est;
+        respuestaVozHabilitada = est;
+      }
+    }
+
+    function aplicarTema(tema) {
+      document.documentElement.setAttribute('data-theme', tema);
+      localStorage.setItem('theme', tema);
+      const btn = document.getElementById('btnThemeToggle');
+      if (btn) btn.innerText = tema === 'dark' ? '🌙' : '☀️';
+      actualizarEstiloGrafico(tema);
+    }
+
+    function alternarTemaManual() {
+      const temaActual = document.documentElement.getAttribute('data-theme') || 'light';
+      aplicarTema(temaActual === 'dark' ? 'light' : 'dark');
+    }
+
+    function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
+    function cerrarModales() { document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none'); }
+
+    function actualizarSlidersPersonalizados() {
+      const min = document.getElementById('sliderMin').value;
+      const max = document.getElementById('sliderMax').value;
+      document.getElementById('lblMinVal').innerText = min + '%';
+      document.getElementById('lblMaxVal').innerText = max + '%';
+      enviarComando(`SET_HUM:${min},${max}`);
+    }
+
+    function reproducirTonoAlerta() {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.5);
+      } catch (e) {}
+    }
+
+    function solicitarPermisoNotificaciones() {
+      if ("Notification" in window) {
+        Notification.requestPermission().then(p => {
+          if (p === "granted") {
+            const btn = document.getElementById('btnAlerts');
+            if (btn) btn.classList.add('active-alert');
+            alert("¡Alertas activadas!");
+            registrarLog('🔔 Permiso de notificaciones push concedido.', 'success');
+          }
+        });
+      }
+    }
+
+    function dispararAlertaGlobal(titulo, mensaje) {
+      let ahora = Date.now();
+      if (ahora - ultimaAlertaTime > 30000) {
+        ultimaAlertaTime = ahora;
+        reproducirTonoAlerta();
+        registrarLog(`🚨 ALERTA CRÍTICA: ${titulo} - ${mensaje}`, 'danger');
+        hablarRespuesta(`${titulo}. ${mensaje}`, true);
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(titulo, { body: mensaje });
+        }
+      }
+    }
+
+    async function consultarClimaAPI() {
+      const ciudad = document.getElementById('weatherCityInput').value.trim();
+      const apiKey = document.getElementById('weatherApiKeyInput').value.trim();
+
+      if (!apiKey) {
+        registrarLog('🌤️ Ingrese una API Key válida de OpenWeather.', 'warn');
+        document.getElementById('lblWeatherDesc').innerText = "Falta API Key";
+        return;
+      }
+
+      try {
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${ciudad}&appid=${apiKey}&units=metric&lang=es`);
+        if (!res.ok) throw new Error("Ciudad no encontrada");
+        const data = await res.json();
+
+        const desc = data.weather[0].description;
+        const tempClima = data.main.temp;
+        probabilidadLluviaClima = data.clouds.all;
+
+        document.getElementById('lblWeatherDesc').innerText = `${desc}, ${tempClima}°C`;
+        document.getElementById('lblRainProb').innerText = `${probabilidadLluviaClima}%`;
+
+        registrarLog(`🌤️ Clima en ${ciudad}: ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'info');
+
+        if (probabilidadLluviaClima > 60) {
+          enviarComando('BOMBA_OFF');
+          dispararAlertaGlobal("Riego Pospuesto por Clima", `Se detectó alta probabilidad de lluvia (${probabilidadLluviaClima}%). Riego cancelado.`);
+        }
+      } catch (err) {
+        registrarLog(`❌ Error al obtener clima: ${err.message}`, 'warn');
+        document.getElementById('lblWeatherDesc').innerText = "Error API";
+      }
+    }
+
+    function generarRecomendacionIA() {
+      let msg = "🤖 Diagnóstico del Asistente: ";
+      if (historialDatos.length > 0) {
+        const ult = historialDatos[historialDatos.length - 1];
+        if (probabilidadLluviaClima > 60) {
+          msg += `Se prevé lluvia del ${probabilidadLluviaClima}%. Es recomendable no regar manualmente. `;
+        }
+        if (ult.temp > 32) {
+          msg += `La temperatura actual es elevada (${ult.temp}°C). Vigila la evapotranspiración. `;
+        }
+        if (ult.humSuelo < 30) {
+          msg += `El sustrato presenta déficit hídrico (${ult.humSuelo}%). `;
+        } else {
+          msg += `El sustrato mantiene un nivel hídrico óptimo del ${ult.humSuelo}%. `;
+        }
+      } else {
+        msg += "Conecte el Bluetooth para recopilar datos de telemetría y generar un informe completo.";
+      }
+
+      document.getElementById('txtIASuggestion').innerText = msg;
+      hablarRespuesta(msg, true);
+    }
+
+    function guardarFertirriego() {
+      const tipo = document.getElementById('selectFertilante').value;
+      const dias = parseInt(document.getElementById('inputFertInterval').value) || 7;
+      
+      let hoy = new Date();
+      hoy.setDate(hoy.getDate() + dias);
+      proximoFertirriegoFecha = hoy;
+
+      const txt = `Próxima aplicación de ${tipo}: ${hoy.toLocaleDateString()}`;
+      document.getElementById('lblFertStatus').innerHTML = `<b>${txt}</b>`;
+      registrarLog(`📅 Fertirriego programado: ${tipo} en ${dias} días.`, 'success');
+      hablarRespuesta(`Fertirriego programado para el ${hoy.toLocaleDateString()}`);
+    }
+
+    function guardarHorarioBloqueo() {
+      horarioBloqueo.inicio = document.getElementById('timeBlockStart').value;
+      horarioBloqueo.fin = document.getElementById('timeBlockEnd').value;
+      registrarLog(`🔒 Horario de descanso guardado: De ${horarioBloqueo.inicio} a ${horarioBloqueo.fin}`, 'info');
+      hablarRespuesta("Horario de descanso configurado.");
+    }
+
+    function verificarBloqueoHoraActual() {
+      const ahora = new Date();
+      const horaMin = ahora.getHours().toString().padStart(2, '0') + ":" + ahora.getMinutes().toString().padStart(2, '0');
+      
+      if (horarioBloqueo.inicio < horarioBloqueo.fin) {
+        return horaMin >= horarioBloqueo.inicio && horaMin <= horarioBloqueo.fin;
+      } else {
+        return horaMin >= horarioBloqueo.inicio || horaMin <= horarioBloqueo.fin;
+      }
+    }
+
+    function initCharts() {
+      const ctxLine = document.getElementById('lineChart').getContext('2d');
+      lineChart = new Chart(ctxLine, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Humedad Suelo (%)', data: [], borderColor: '#059669', backgroundColor: 'rgba(5, 150, 105, 0.1)', fill: true, tension: 0.3 },
+            { label: 'Temperatura (°C)', data: [], borderColor: '#dc2626', tension: 0.3 },
+            { label: 'Humedad Aire (%)', data: [], borderColor: '#0284c7', tension: 0.3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b' } },
+            y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b' } }
+          },
+          plugins: { legend: { labels: { color: '#0f172a' } } }
+        }
+      });
+
+      const ctxFin = document.getElementById('financialChart').getContext('2d');
+      financialChart = new Chart(ctxFin, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Volumen Acumulado (L)', data: [], borderColor: '#0284c7', backgroundColor: 'rgba(2, 132, 199, 0.1)', fill: true, tension: 0.3, yAxisID: 'y' },
+            { label: 'Costo OPEX (S/)', data: [], borderColor: '#059669', backgroundColor: 'rgba(5, 150, 105, 0.1)', fill: true, tension: 0.3, yAxisID: 'y1' }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { color: '#64748b' } },
+            y: { type: 'linear', display: true, position: 'left', title: { display: true, text: 'Litros (L)' } },
+            y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Soles (S/)' } }
+          },
+          plugins: { legend: { labels: { color: '#0f172a' } } }
+        }
+      });
+    }
+
+    function actualizarEstiloGrafico(tema) {
+      const esOscuro = tema === 'dark';
+      const colorTexto = esOscuro ? '#f8fafc' : '#0f172a';
+      const colorMuted = esOscuro ? '#94a3b8' : '#64748b';
+      const colorGrid = esOscuro ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+
+      [lineChart, financialChart].forEach(chart => {
+        if (!chart) return;
+        chart.options.scales.x.grid.color = colorGrid;
+        if (chart.options.scales.y) chart.options.scales.y.grid.color = colorGrid;
+        chart.options.scales.x.ticks.color = colorMuted;
+        if (chart.options.scales.y) chart.options.scales.y.ticks.color = colorMuted;
+        if (chart.options.scales.y1) chart.options.scales.y1.ticks.color = colorMuted;
+        chart.options.plugins.legend.labels.color = colorTexto;
+        chart.update();
+      });
+    }
+
+    function guardarLecturaEnStorage(registro) {
+      historialDatos.push(registro);
+      if (historialDatos.length > 500) historialDatos.shift();
+      try { localStorage.setItem('historialRiego', JSON.stringify(historialDatos)); } catch (e) {}
+    }
+
+    function cargarHistorialGuardado() {
+      const datos = localStorage.getItem('historialRiego');
+      if (datos) {
+        try {
+          historialDatos = JSON.parse(datos);
+          historialDatos.forEach(r => {
+            lineChart.data.labels.push(r.hora);
+            lineChart.data.datasets[0].data.push(r.humSuelo);
+            lineChart.data.datasets[1].data.push(r.temp);
+            lineChart.data.datasets[2].data.push(r.humAire);
+
+            financialChart.data.labels.push(r.hora);
+            financialChart.data.datasets[0].data.push(r.volL);
+            financialChart.data.datasets[1].data.push(r.opex);
+          });
+          lineChart.update();
+          financialChart.update();
+          registrarLog(`📂 Historial local restaurado (${historialDatos.length} registros).`, 'info');
+        } catch (e) {}
+      }
+    }
+
+    async function conectarBLE() {
+      try {
+        registrarLog('⚡ Solicitando escaneo de dispositivos Bluetooth...', 'info');
+        bluetoothDevice = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'Matriz_LED_R4' }],
+          optionalServices: [SERVICE_UUID]
+        });
+
+        configurarAutoReconexion(bluetoothDevice);
+
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService(SERVICE_UUID);
+        bluetoothCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+        await bluetoothCharacteristic.startNotifications();
+        bluetoothCharacteristic.addEventListener('characteristicvaluechanged', recibirTelemetria);
+
+        document.getElementById('statusBadge').className = 'badge-status connected';
+        document.getElementById('statusText').innerText = "ONLINE";
+        document.getElementById('rssiVal').innerText = "(BLE OK)";
+        
+        registrarLog('⚡ Conexión exitosa con Arduino Uno R4 WiFi.', 'success');
+        hablarRespuesta("Arduino R4 conectado exitosamente.", true);
+      } catch (error) {
+        registrarLog('❌ Fallo al establecer conexión BLE o cancelación por usuario.', 'warn');
+      }
+    }
+
+    async function enviarComando(cmd) {
+      if (!bluetoothCharacteristic) {
+        registrarLog(`⚠️ Intento de envío (${cmd}) fallido: Sin conexión BLE.`, 'warn');
+        return;
+      }
+      let encoder = new TextEncoder();
+      await bluetoothCharacteristic.writeValue(encoder.encode(cmd));
+      registrarLog(`📤 Comando transmitido por BLE: ${cmd}`, 'success');
+    }
+
+    function exportarCSV() {
+      if (historialDatos.length === 0) {
+        registrarLog('⚠️ No hay datos en el historial para exportar.', 'warn');
+        return;
+      }
+      let csv = "data:text/csv;charset=utf-8,Hora,Humedad_Suelo,Temp,Hum_Aire,Tanque,Caudal,Volumen_L,Opex_Soles,Score\n";
+      historialDatos.forEach(r => csv += `${r.hora},${r.humSuelo},${r.temp},${r.humAire},${r.pctTanque},${r.caudal},${r.volL},${r.opex},${r.score}\n`);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csv));
+      link.setAttribute("download", `Telemetria.csv`);
+      document.body.appendChild(link);
+      link.click();
+      registrarLog('📥 Reporte CSV descargado correctamente.', 'info');
+    }
+
+    function recibirTelemetria(event) {
+      let decoder = new TextDecoder('utf-8');
+      let trama = decoder.decode(event.target.value).trim();
+      let d = trama.split(',');
+
+      if (d.length >= 5) {
+        let humSuelo = parseFloat(d[0]);
+        let temp = parseFloat(d[1]);
+        let humAire = parseFloat(d[2]);
+        let pctTanque = parseFloat(d[3]);
+        let caudal = parseFloat(d[4]);
+        let hora = new Date().toLocaleTimeString();
+
+        document.getElementById('tankFill').style.height = `${Math.min(Math.max(pctTanque, 0), 100)}%`;
+        document.getElementById('valTanqueTxt').innerText = `${Math.round(pctTanque)}%`;
+
+        let litrosRestantes = (pctTanque / 100) * 14.0;
+        let consumoDiarioEstimado = 1.2;
+        let diasAutonomia = Math.max(0, Math.floor(litrosRestantes / consumoDiarioEstimado));
+        
+        let elAut = document.getElementById('txtAutonomia');
+        if (elAut) {
+          elAut.innerText = pctTanque > 5 ? `Autonomía: ~${diasAutonomia} días` : 'Autonomía: Crítica';
+        }
+
+        let plantSvg = document.getElementById('soilPlantSvg');
+        if (plantSvg) {
+          if (humSuelo < 30) {
+            plantSvg.className = "soil-plant-svg dry";
+          } else {
+            plantSvg.className = "soil-plant-svg wet";
+          }
+        }
+        document.getElementById('valSueloTxt').innerText = `${Math.round(humSuelo)}%`;
+
+        let thermoLine = document.getElementById('thermoLine');
+        let thermoBulb = document.getElementById('thermoBulb');
+        if (thermoLine && thermoBulb) {
+          let pctTemp = Math.min(Math.max(((temp - 0) / 45) * 100, 10), 95);
+          thermoLine.style.height = `${pctTemp}%`;
+
+          let colorTemp = '#10b981';
+          if (temp < 18) colorTemp = '#38bdf8';
+          else if (temp >= 28 && temp <= 34) colorTemp = '#f59e0b';
+          else if (temp > 34) colorTemp = '#ef4444';
+
+          thermoLine.style.backgroundColor = colorTemp;
+          thermoBulb.style.backgroundColor = colorTemp;
+        }
+        document.getElementById('valTempTxt').innerText = `${temp.toFixed(1)}°C`;
+
+        let drops = [document.getElementById('drop1'), document.getElementById('drop2'), document.getElementById('drop3')];
+        drops.forEach(d => {
+          if (d) {
+            if (humAire > 60) d.classList.add('animating');
+            else d.classList.remove('animating');
+          }
+        });
+        document.getElementById('valHumAireTxt').innerText = `${Math.round(humAire)}%`;
+
+        let pipeCapsule = document.getElementById('pipeCapsule');
+        let pwmVal = (d.length >= 15) ? parseInt(d[14]) : 0;
+        let txtBomba = document.getElementById('txtEstadoBomba');
+        
+        if (pwmVal > 0) { 
+          txtBomba.innerText = "ON"; txtBomba.style.color = "var(--agri-green)";
+        } else { 
+          txtBomba.innerText = "OFF"; txtBomba.style.color = "var(--agri-red)"; 
+        }
+
+        if (caudal > 0.1) { pipeCapsule.classList.add('active'); } else { pipeCapsule.classList.remove('active'); }
+        document.getElementById('valFlujoTxt').innerText = `${caudal.toFixed(1)} L/m`;
+
+        actualizarPinesBoard(humSuelo, caudal, pwmVal);
+
+        let fFuga = document.getElementById('flagFuga');
+        if (pwmVal === 0 && caudal > 0.05) {
+          fFuga.innerText = "ALERTA FUGA"; fFuga.className = "val alert";
+          dispararAlertaGlobal("Alerta de Fuga", "Se detecta paso de agua con la bomba apagada.");
+        } else { fFuga.innerText = "OK (0 L/m)"; fFuga.className = "val"; }
+
+        let fTanque = document.getElementById('flagPisoTanque');
+        if (pctTanque <= 15) { 
+          fTanque.innerText = "CRÍTICO (<15%)"; fTanque.className = "val alert";
+          dispararAlertaGlobal("Tanque Bajo", "Atención: El nivel del tanque de reserva es crítico.");
+        } else { fTanque.innerText = "OK (>15%)"; fTanque.className = "val"; }
+
+        let score = 100;
+        if (humSuelo < 30) score -= 25;
+        if (temp > 35) score -= 20;
+        if (humAire > 80) score -= 15;
+        score = Math.max(score, 10);
+
+        document.getElementById('txtScoreVal').innerText = `${score}%`;
+        document.getElementById('scoreCircle').style.background = `conic-gradient(var(--agri-green) ${score}%, var(--inner-bg) 0)`;
+
+        if (caudal > 0) volAcumuladoL += (caudal / 60);
+        let energiaWh = volAcumuladoL * 0.18;
+        let opexSoles = (volAcumuladoL * 0.005) + ((volAcumuladoL / 100) * 0.18);
+
+        document.getElementById('txtVolumenTotal').innerText = `${volAcumuladoL.toFixed(2)} L`;
+        document.getElementById('txtEnergiaTotal').innerText = `${energiaWh.toFixed(1)} Wh`;
+        document.getElementById('txtOpexSoles').innerText = `S/ ${opexSoles.toFixed(2)}`;
+
+        lineChart.data.labels.push(hora);
+        lineChart.data.datasets[0].data.push(humSuelo);
+        lineChart.data.datasets[1].data.push(temp);
+        lineChart.data.datasets[2].data.push(humAire);
+
+        financialChart.data.labels.push(hora);
+        financialChart.data.datasets[0].data.push(volAcumuladoL.toFixed(2));
+        financialChart.data.datasets[1].data.push(opexSoles.toFixed(2));
+
+        if (lineChart.data.labels.length > 20) {
+          lineChart.data.labels.shift();
+          lineChart.data.datasets[0].data.shift();
+          lineChart.data.datasets[1].data.shift();
+          lineChart.data.datasets[2].data.shift();
+
+          financialChart.data.labels.shift();
+          financialChart.data.datasets[0].data.shift();
+          financialChart.data.datasets[1].data.shift();
+        }
+
+        lineChart.update();
+        financialChart.update();
+
+        guardarLecturaEnStorage({ hora, humSuelo, temp, humAire, pctTanque, caudal, volL: volAcumuladoL.toFixed(2), opex: opexSoles.toFixed(2), score });
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      crearGrillaLED12x8();
+      initCharts();
+      inicializarTema();
+      cargarHistorialGuardado();
+      
+      // Auto-detección inicial de dispositivo móvil
+      if (window.innerWidth <= 600) {
+        document.body.classList.add('forced-mobile-view');
+        const btn = document.getElementById('btnDeviceMode');
+        if (btn) btn.innerText = '🖥️ Escritorio';
+      }
+    });
+  </script>
+</body>
+</html>
