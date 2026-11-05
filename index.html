@@ -1526,14 +1526,14 @@
 
     let vozMasterActivada = false;       
     let respuestaVozHabilitada = true;   
-    let alertasActivas = false; // ESTADO GLOBAL ALERTAS PUSH
+    let alertasActivas = false;
 
     let probabilidadLluviaClima = 0;
     let proximoFertirriegoFecha = null;
-    let fertirriegoActivo = false; // ESTADO FERTIRRIEGO
+    let fertirriegoActivo = false;
     
     let horarioBloqueo = { inicio: "22:00", fin: "06:00" };
-    let horarioBloqueoActivo = false; // ESTADO HORARIOS DE DESCANSO
+    let horarioBloqueoActivo = false;
 
     const PATRONES_LED_MAP = {
       'PATRON_1': [
@@ -1678,10 +1678,10 @@
       }
     }
 
-    // LENGUAJE NATURAL EXPANDIDO
+    // COMANDOS DE VOZ AMPLIADOS CON MATRIZ LED Y MÁS
     function procesarComandoVoz(cmd) {
-      // 1. CROP SCORE Y ESTADO DEL CULTIVO
-      if (cmd.includes("score") || cmd.includes("salud del cultivo") || cmd.includes("salud de la planta") || cmd.includes("puntuacion")) {
+      // 1. CROP SCORE
+      if (cmd.includes("score") || cmd.includes("salud del cultivo") || cmd.includes("salud de la planta")) {
         let sc = document.getElementById('txtScoreVal').innerText;
         let desc = document.getElementById('txtScoreDesc').innerText;
         let resp = `El Crop Score actual es del ${sc}, clasificado como ${desc}.`;
@@ -1689,8 +1689,8 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 2. DIAGNÓSTICO DEL SUELO Y SUSTRATO
-      else if (cmd.includes("estado del suelo") || cmd.includes("diagnostico") || cmd.includes("sustrato") || cmd.includes("salud del suelo")) {
+      // 2. DIAGNÓSTICO SUELO
+      else if (cmd.includes("estado del suelo") || cmd.includes("diagnostico") || cmd.includes("sustrato")) {
         let est = document.getElementById('txtEstadoSuelo').innerText;
         let rec = document.getElementById('txtRecomendacionSuelo').innerText;
         let resp = `Diagnóstico: ${est}. ${rec}`;
@@ -1698,7 +1698,7 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 3. HUMEDAD DEL SUELO
+      // 3. HUMEDAD SUELO
       else if (cmd.includes("humedad del suelo") || cmd.includes("humedad suelo") || cmd.includes("cuanta humedad")) {
         let hum = document.getElementById('valSueloTxt').innerText;
         let resp = `La humedad actual del suelo es de ${hum}.`;
@@ -1706,7 +1706,7 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 4. TEMPERATURA AMBIENTAL
+      // 4. TEMPERATURA
       else if (cmd.includes("temperatura") || cmd.includes("clima actual") || cmd.includes("grados")) {
         let temp = document.getElementById('valTempTxt').innerText;
         let resp = `La temperatura ambiental registrada es de ${temp}.`;
@@ -1714,16 +1714,16 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 5. HUMEDAD DEL AIRE
-      else if (cmd.includes("humedad del aire") || cmd.includes("humedad aire") || cmd.includes("humedad ambiental")) {
+      // 5. HUMEDAD AIRE
+      else if (cmd.includes("humedad del aire") || cmd.includes("humedad aire")) {
         let haire = document.getElementById('valHumAireTxt').innerText;
         let resp = `La humedad del aire es del ${haire}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
-      // 6. NIVEL DEL TANQUE Y AUTONOMÍA
-      else if (cmd.includes("tanque") || cmd.includes("cuanta agua queda") || cmd.includes("nivel del agua") || cmd.includes("autonomía") || cmd.includes("autonomia")) {
+      // 6. TANQUE Y AUTONOMÍA
+      else if (cmd.includes("tanque") || cmd.includes("cuanta agua queda") || cmd.includes("nivel del agua") || cmd.includes("autonomía")) {
         let tanq = document.getElementById('valTanqueTxt').innerText;
         let aut = document.getElementById('txtAutonomia').innerText;
         let resp = `El tanque de reserva está al ${tanq}. Quedan aproximadamente ${aut.replace('Autonomía: ', '')}.`;
@@ -1731,35 +1731,54 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 7. CONSUMO DE AGUA Y COSTOS OPEX
-      else if (cmd.includes("costo") || cmd.includes("consumo") || cmd.includes("gastado") || cmd.includes("opex") || cmd.includes("cuanto dinero")) {
+      // 7. COSTO Y CONSUMO OPEX
+      else if (cmd.includes("costo") || cmd.includes("consumo") || cmd.includes("gastado") || cmd.includes("opex")) {
         let vol = document.getElementById('txtVolumenTotal').innerText;
         let opex = document.getElementById('txtOpexSoles').innerText;
-        let resp = `Hasta el momento se han consumido ${vol} de agua con un costo operativo estimado de ${opex}.`;
-        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
-        hablarRespuesta(resp, true);
-        return;
-      }
-      // 8. ALERTAS Y FUGAS
-      else if (cmd.includes("alertas") || cmd.includes("fuga") || cmd.includes("seguridad")) {
-        let fuga = document.getElementById('flagFuga').innerText;
-        let piso = document.getElementById('flagPisoTanque').innerText;
-        let resp = `Estado de seguridad: Fugas ${fuga}, Nivel del tanque ${piso}.`;
-        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
-        hablarRespuesta(resp, true);
-        return;
-      }
-      // 9. FLUJO DE AGUA
-      else if (cmd.includes("caudal") || cmd.includes("flujo")) {
-        let fl = document.getElementById('valFlujoTxt').innerText;
-        let resp = `El caudal de agua actual es de ${fl}.`;
+        let resp = `Hasta el momento se han consumido ${vol} de agua con un costo operativo de ${opex}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
 
-      // COMANDOS DE ACCIÓN
-      if (cmd.includes("encender bomba") || cmd.includes("regar")) {
+      // COMANDOS MATRIZ LED POR VOZ
+      if (cmd.includes("matriz led") || cmd.includes("pantalla led") || cmd.includes("mostrar leds")) {
+        abrirModal('modalLeds');
+        hablarRespuesta("Abriendo panel de la matriz LED.", true);
+      }
+      else if (cmd.includes("patrón uno") || cmd.includes("patron uno") || cmd.includes("cuadrícula") || cmd.includes("cuadricula")) {
+        seleccionarPatronLED('PATRON_1');
+        hablarRespuesta("Patrón cuadrícula activado en la matriz LED.", true);
+      }
+      else if (cmd.includes("patrón dos") || cmd.includes("patron dos") || cmd.includes("marco")) {
+        seleccionarPatronLED('PATRON_2');
+        hablarRespuesta("Patrón marco activado en la matriz LED.", true);
+      }
+      else if (cmd.includes("patrón tres") || cmd.includes("carita feliz") || cmd.includes("patron tres")) {
+        seleccionarPatronLED('PATRON_3');
+        hablarRespuesta("Carita feliz activada en la matriz LED.", true);
+      }
+      else if (cmd.includes("apagar leds") || cmd.includes("apagar matriz") || cmd.includes("apagar pantalla")) {
+        seleccionarPatronLED('PATRON_OFF');
+        hablarRespuesta("Matriz LED apagada.", true);
+      }
+
+      // CONTROL DE FERTIRRIEGO Y DESCANSO POR VOZ
+      else if (cmd.includes("activar fertirriego") || cmd.includes("encender fertirriego")) {
+        if (!fertirriegoActivo) toggleFertirriegoState();
+      }
+      else if (cmd.includes("desactivar fertirriego") || cmd.includes("apagar fertirriego")) {
+        if (fertirriegoActivo) toggleFertirriegoState();
+      }
+      else if (cmd.includes("activar descanso") || cmd.includes("modo descanso") || cmd.includes("activar bloqueo")) {
+        if (!horarioBloqueoActivo) toggleHorarioBloqueoState();
+      }
+      else if (cmd.includes("desactivar descanso") || cmd.includes("quitar descanso") || cmd.includes("desactivar bloqueo")) {
+        if (horarioBloqueoActivo) toggleHorarioBloqueoState();
+      }
+
+      // ACCIONES DE RIEGO Y NAVEGACIÓN
+      else if (cmd.includes("encender bomba") || cmd.includes("regar")) {
         if (verificarBloqueoHoraActual()) {
           hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
           return;
@@ -2050,7 +2069,6 @@
       } catch (e) {}
     }
 
-    // BOTÓN DE ALERTAS TOGGLE ON/OFF
     function solicitarPermisoNotificaciones() {
       const btn = document.getElementById('btnAlerts');
       
@@ -2077,7 +2095,7 @@
             registrarLog('🔔 Permiso de notificaciones push concedido.', 'success');
             hablarRespuesta("Alertas de notificación activadas.");
           } else {
-            alert("Permiso de notificaciones denegado en el navegador.");
+            alert("Permiso de notificaciones denegado.");
           }
         });
       }
@@ -2154,7 +2172,6 @@
       hablarRespuesta(msg, true);
     }
 
-    // ACTIVAR / DESACTIVAR FERTIRRIEGO
     function toggleFertirriegoState() {
       fertirriegoActivo = !fertirriegoActivo;
       const btn = document.getElementById('btnFertToggle');
@@ -2193,7 +2210,6 @@
       hablarRespuesta(`Fertirriego agendado para el ${hoy.toLocaleDateString()}`);
     }
 
-    // ACTIVAR / DESACTIVAR HORARIOS DE DESCANSO
     function toggleHorarioBloqueoState() {
       horarioBloqueoActivo = !horarioBloqueoActivo;
       const btn = document.getElementById('btnBlockToggle');
