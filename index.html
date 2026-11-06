@@ -1809,20 +1809,21 @@
         return;
       }
 
-      if (/matriz|pantalla|leds|luces/.test(cmd)) {
+      // RECONOCIMIENTO DE MATRIZ LED OPTIMIZADO (FLEXIBLE)
+      if (/matriz|pantalla|leds|luces|patron|patrón/.test(cmd)) {
         if (/abrir|mostrar|ver|pines|modal/.test(cmd)) {
           abrirModal('modalLeds');
           hablarRespuesta("Abriendo panel de la matriz LED.", true);
-        } else if (/apagar|apaga|quita|quitar|off/.test(cmd)) {
+        } else if (/apagar|apaga|quita|quitar|off|limpiar/.test(cmd)) {
           seleccionarPatronLED('PATRON_OFF');
           hablarRespuesta("Matriz LED apagada.", true);
-        } else if (/cuadricula|patron uno|patron 1|uno/.test(cmd)) {
+        } else if (/cuadricula|cuadrícula|uno|1/.test(cmd)) {
           seleccionarPatronLED('PATRON_1');
           hablarRespuesta("Patrón cuadrícula activado.", true);
-        } else if (/marco|patron dos|patron 2|dos/.test(cmd)) {
+        } else if (/marco|borde|dos|2/.test(cmd)) {
           seleccionarPatronLED('PATRON_2');
           hablarRespuesta("Patrón marco activado.", true);
-        } else if (/carita|feliz|sonrisa|patron tres|patron 3|tres/.test(cmd)) {
+        } else if (/carita|feliz|sonrisa|tres|3/.test(cmd)) {
           seleccionarPatronLED('PATRON_3');
           hablarRespuesta("Carita feliz activada.", true);
         }
