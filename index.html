@@ -1335,7 +1335,7 @@
           <div class="control-col">
             <div class="col-header-title">Clima en Tiempo Real (OpenWeather)</div>
             <div style="display:flex; flex-direction:column; gap:8px;">
-              <input type="text" id="weatherCityInput" placeholder="Ciudad (ej. Lima, Madrid)" value="Lima">
+              <input type="text" id="weatherCityInput" placeholder="Ciudad (ej. Pacasmayo)" value="Pacasmayo,PE">
               <input type="text" id="weatherApiKeyInput" placeholder="API Key OpenWeather" value="">
               <button class="btn-flat" style="background:var(--agri-blue); color:#fff;" onclick="consultarClimaAPI()">🌤️ Consultar Clima</button>
             </div>
@@ -1595,7 +1595,6 @@
       if (activado) hablarRespuesta("Respuesta hablada activada.", true);
     }
 
-    // VOZ DE RESPUESTA MEJORADA CON SELECCIÓN DE VOZ NATURAL
     function hablarRespuesta(texto, forzar = false) {
       if (!respuestaVozHabilitada && !forzar) return;
       if ('speechSynthesis' in window) {
@@ -1695,7 +1694,6 @@
       }
     }
 
-    // NORMALIZADOR PARA EXTRACTO DE PALABRAS CLAVE
     function normalizarTexto(texto) {
       return texto
         .toLowerCase()
@@ -1706,11 +1704,9 @@
         .trim();
     }
 
-    // PROCESADOR DE COMANDOS DE VOZ FLEXIBLE
     function procesarComandoVoz(rawCmd) {
       const cmd = normalizarTexto(rawCmd);
 
-      // 1. CROP SCORE
       if (/score|salud|estado de planta|como esta planta/.test(cmd)) {
         let sc = document.getElementById('txtScoreVal').innerText;
         let desc = document.getElementById('txtScoreDesc').innerText;
@@ -1720,7 +1716,6 @@
         return;
       }
 
-      // 2. DIAGNÓSTICO SUELO / SUSTRATO
       if (/suelo|sustrato|tierra|diagnostico/.test(cmd) && !/humedad/.test(cmd)) {
         let est = document.getElementById('txtEstadoSuelo').innerText;
         let rec = document.getElementById('txtRecomendacionSuelo').innerText;
@@ -1730,7 +1725,6 @@
         return;
       }
 
-      // 3. HUMEDAD SUELO
       if (/humedad.*suelo|humedad.*tierra|cuanta agua tiene suelo|humedad/.test(cmd) && !/aire|ambiente/.test(cmd)) {
         let hum = document.getElementById('valSueloTxt').innerText;
         let resp = `La humedad actual del suelo es de ${hum}.`;
@@ -1739,7 +1733,6 @@
         return;
       }
 
-      // 4. FLUJO DE AGUA / CAUDAL
       if (/flujo|caudal|litros por minuto|paso de agua|flujo de agua/.test(cmd)) {
         let flujo = document.getElementById('valFlujoTxt').innerText;
         let resp = `El flujo de agua actual registrado es de ${flujo}.`;
@@ -1748,7 +1741,6 @@
         return;
       }
 
-      // 5. TEMPERATURA
       if (/temperatura|calor|frio|grados|clima/.test(cmd) && !/humedad/.test(cmd)) {
         let temp = document.getElementById('valTempTxt').innerText;
         let resp = `La temperatura ambiental registrada es de ${temp}.`;
@@ -1757,7 +1749,6 @@
         return;
       }
 
-      // 6. HUMEDAD AIRE
       if (/humedad.*aire|humedad.*ambiente/.test(cmd)) {
         let haire = document.getElementById('valHumAireTxt').innerText;
         let resp = `La humedad del aire es del ${haire}.`;
@@ -1766,7 +1757,6 @@
         return;
       }
 
-      // 7. TANQUE Y AUTONOMÍA
       if (/tanque|nivel agua|agua queda|autonomia|reserva/.test(cmd)) {
         let tanq = document.getElementById('valTanqueTxt').innerText;
         let aut = document.getElementById('txtAutonomia').innerText;
@@ -1776,7 +1766,6 @@
         return;
       }
 
-      // 8. COSTO Y CONSUMO OPEX
       if (/costo|consumo|gastado|gastamos|opex|soles|dinero/.test(cmd)) {
         let vol = document.getElementById('txtVolumenTotal').innerText;
         let opex = document.getElementById('txtOpexSoles').innerText;
@@ -1786,7 +1775,6 @@
         return;
       }
 
-      // 9. FERTIRRIEGO
       if (/fertirriego|fertilizante|nutrientes/.test(cmd)) {
         if (/apaga|apagar|desactiva|desactivar|quita|quitar|cancela|cancelar|deten|detener|no/.test(cmd)) {
           if (fertirriegoActivo) {
@@ -1804,7 +1792,6 @@
         return;
       }
 
-      // 10. HORARIO DE DESCANSO / BLOQUEO
       if (/descanso|bloqueo|modo noche|pausa/.test(cmd)) {
         if (/apaga|apagar|desactiva|desactivar|quita|quitar|cancela|cancelar|deten|detener|no/.test(cmd)) {
           if (horarioBloqueoActivo) {
@@ -1822,7 +1809,6 @@
         return;
       }
 
-      // 11. MATRIZ LED Y PATRONES
       if (/matriz|pantalla|leds|luces/.test(cmd)) {
         if (/abrir|mostrar|ver|pines|modal/.test(cmd)) {
           abrirModal('modalLeds');
@@ -1843,7 +1829,6 @@
         return;
       }
 
-      // 12. CONTROL DE BOMBA Y RIEGO DIRECTO
       if (/bomba|riego|regar|agua/.test(cmd)) {
         if (/enciende|encender|activa|activar|inicia|iniciar|prende|prendas|dame/.test(cmd)) {
           if (verificarBloqueoHoraActual()) {
@@ -1859,7 +1844,6 @@
         return;
       }
 
-      // 13. PERFILES AGRONÓMICOS
       if (/perfil|modo|planta|cultivo/.test(cmd)) {
         if (/lechuga/.test(cmd)) { gestionarCambioPerfil("PERFIL:LECHUGA"); hablarRespuesta("Perfil lechuga activado."); }
         else if (/rabanito/.test(cmd)) { gestionarCambioPerfil("PERFIL:RABANITO"); hablarRespuesta("Perfil rabanito activado."); }
@@ -1872,7 +1856,6 @@
         return;
       }
 
-      // 14. OTROS COMANDOS
       if (/resumen|dia|diario/.test(cmd)) { generarResumenDiarioHablado(); }
       else if (/reporte|diagnostico|recomendacion|ia/.test(cmd)) { generarRecomendacionIA(); }
       else if (/bluetooth|conectar|vincular/.test(cmd)) { conectarBLE(); }
@@ -2155,8 +2138,9 @@
       }
     }
 
+    // CONSULTA GEOCODIFICADA OPTIMIZADA PARA PACASMAYO, LA LIBERTAD
     async function consultarClimaAPI() {
-      const ciudad = document.getElementById('weatherCityInput').value.trim();
+      let ciudadTexto = document.getElementById('weatherCityInput').value.trim();
       const apiKey = document.getElementById('weatherApiKeyInput').value.trim();
 
       if (!apiKey) {
@@ -2165,9 +2149,44 @@
         return;
       }
 
+      if (!ciudadTexto) {
+        ciudadTexto = "Pacasmayo,PE";
+        document.getElementById('weatherCityInput').value = ciudadTexto;
+      }
+
       try {
-        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${ciudad}&appid=${apiKey}&units=metric&lang=es`);
-        if (!res.ok) throw new Error("Ciudad no encontrada");
+        // 1. Obtención de coordenadas geográficas de Pacasmayo
+        const geoRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(ciudadTexto)}&limit=1&appid=${apiKey}`);
+        const geoData = await geoRes.json();
+
+        let lat, lon, nombreCiudad;
+
+        if (Array.isArray(geoData) && geoData.length > 0) {
+          lat = geoData[0].lat;
+          lon = geoData[0].lon;
+          nombreCiudad = geoData[0].name;
+        } else {
+          // Búsqueda de respaldo con el código de país Perú (PE)
+          const fallbackRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(ciudadTexto + ',PE')}&limit=1&appid=${apiKey}`);
+          const fallbackData = await fallbackRes.json();
+          
+          if (Array.isArray(fallbackData) && fallbackData.length > 0) {
+            lat = fallbackData[0].lat;
+            lon = fallbackData[0].lon;
+            nombreCiudad = fallbackData[0].name;
+          } else {
+            throw new Error(`No se encontró la ubicación "${ciudadTexto}".`);
+          }
+        }
+
+        // 2. Consulta de telemetría climática con latitud y longitud precisas
+        const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=es`);
+        
+        if (!res.ok) {
+          if (res.status === 401) throw new Error("API Key no activada aún o inválida");
+          throw new Error(`Error HTTP: ${res.status}`);
+        }
+        
         const data = await res.json();
 
         const desc = data.weather[0].description;
@@ -2177,7 +2196,7 @@
         document.getElementById('lblWeatherDesc').innerText = `${desc}, ${tempClima}°C`;
         document.getElementById('lblRainProb').innerText = `${probabilidadLluviaClima}%`;
 
-        registrarLog(`🌤️ Clima en ${ciudad}: ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'info');
+        registrarLog(`🌤️ Clima en ${nombreCiudad} (La Libertad, PE): ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'success');
 
         if (probabilidadLluviaClima > 60) {
           enviarComando('BOMBA_OFF');
