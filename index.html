@@ -1595,13 +1595,30 @@
       if (activado) hablarRespuesta("Respuesta hablada activada.", true);
     }
 
+    // VOZ DE RESPUESTA MEJORADA CON SELECCIÓN DE VOZ NATURAL
     function hablarRespuesta(texto, forzar = false) {
       if (!respuestaVozHabilitada && !forzar) return;
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(texto);
-        utterance.lang = 'es-ES';
-        utterance.rate = 1.0;
+        
+        utterance.rate = 1.0;   // Velocidad (0.8 a 1.2)
+        utterance.pitch = 1.05; // Tono (0.5 a 1.5)
+        utterance.volume = 1.0;
+
+        const voces = window.speechSynthesis.getVoices();
+        const vozPreferida = voces.find(voz => 
+          voz.lang.includes('es') && (
+            voz.name.includes('Natural') || 
+            voz.name.includes('Google') || 
+            voz.name.includes('Helena') || 
+            voz.name.includes('Sabina') || 
+            voz.name.includes('Jorge')
+          )
+        ) || voces.find(voz => voz.lang.startsWith('es'));
+
+        if (vozPreferida) utterance.voice = vozPreferida;
+
         window.speechSynthesis.speak(utterance);
       }
     }
@@ -1678,7 +1695,7 @@
       }
     }
 
-    // COMANDOS DE VOZ AMPLIADOS CON MATRIZ LED Y MÁS
+    // PROCESADOR DE COMANDOS DE VOZ COMPLETO Y CORREGIDO
     function procesarComandoVoz(cmd) {
       // 1. CROP SCORE
       if (cmd.includes("score") || cmd.includes("salud del cultivo") || cmd.includes("salud de la planta")) {
@@ -1741,7 +1758,43 @@
         return;
       }
 
-      // COMANDOS MATRIZ LED POR VOZ
+      // 8. CONTROL DE FERTIRRIEGO (DESACTIVAR / ACTIVAR)
+      if (cmd.includes("desactivar fertirriego") || cmd.includes("apagar fertirriego") || cmd.includes("quitar fertirriego") || cmd.includes("cancelar fertirriego")) {
+        if (fertirriegoActivo) {
+          toggleFertirriegoState();
+        } else {
+          hablarRespuesta("El fertirriego ya se encuentra desactivado.", true);
+        }
+        return;
+      }
+      else if (cmd.includes("activar fertirriego") || cmd.includes("encender fertirriego") || cmd.includes("iniciar fertirriego")) {
+        if (!fertirriegoActivo) {
+          toggleFertirriegoState();
+        } else {
+          hablarRespuesta("El fertirriego ya está activado.", true);
+        }
+        return;
+      }
+
+      // 9. CONTROL DE HORARIO DE DESCANSO / BLOQUEO (DESACTIVAR / ACTIVAR)
+      if (cmd.includes("desactivar descanso") || cmd.includes("quitar descanso") || cmd.includes("desactivar bloqueo") || cmd.includes("quitar bloqueo") || cmd.includes("apagar descanso") || cmd.includes("apagar bloqueo")) {
+        if (horarioBloqueoActivo) {
+          toggleHorarioBloqueoState();
+        } else {
+          hablarRespuesta("El horario de descanso ya está desactivado.", true);
+        }
+        return;
+      }
+      else if (cmd.includes("activar descanso") || cmd.includes("modo descanso") || cmd.includes("activar bloqueo") || cmd.includes("encender descanso") || cmd.includes("poner descanso")) {
+        if (!horarioBloqueoActivo) {
+          toggleHorarioBloqueoState();
+        } else {
+          hablarRespuesta("El horario de descanso ya se encuentra activo.", true);
+        }
+        return;
+      }
+
+      // 10. COMANDOS MATRIZ LED
       if (cmd.includes("matriz led") || cmd.includes("pantalla led") || cmd.includes("mostrar leds")) {
         abrirModal('modalLeds');
         hablarRespuesta("Abriendo panel de la matriz LED.", true);
@@ -1763,21 +1816,7 @@
         hablarRespuesta("Matriz LED apagada.", true);
       }
 
-      // CONTROL DE FERTIRRIEGO Y DESCANSO POR VOZ
-      else if (cmd.includes("activar fertirriego") || cmd.includes("encender fertirriego")) {
-        if (!fertirriegoActivo) toggleFertirriegoState();
-      }
-      else if (cmd.includes("desactivar fertirriego") || cmd.includes("apagar fertirriego")) {
-        if (fertirriegoActivo) toggleFertirriegoState();
-      }
-      else if (cmd.includes("activar descanso") || cmd.includes("modo descanso") || cmd.includes("activar bloqueo")) {
-        if (!horarioBloqueoActivo) toggleHorarioBloqueoState();
-      }
-      else if (cmd.includes("desactivar descanso") || cmd.includes("quitar descanso") || cmd.includes("desactivar bloqueo")) {
-        if (horarioBloqueoActivo) toggleHorarioBloqueoState();
-      }
-
-      // ACCIONES DE RIEGO Y NAVEGACIÓN
+      // 11. ACCIONES DE RIEGO Y NAVEGACIÓN
       else if (cmd.includes("encender bomba") || cmd.includes("regar")) {
         if (verificarBloqueoHoraActual()) {
           hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
