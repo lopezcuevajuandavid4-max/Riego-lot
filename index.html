@@ -2138,7 +2138,7 @@
       }
     }
 
-    // CONSULTA GEOCODIFICADA OPTIMIZADA PARA PACASMAYO, LA LIBERTAD
+    // CONSULTA CLIMÁTICA CON LÓGICA HÍBRIDA DE LLUVIA REAL PARA PACASMAYO
     async function consultarClimaAPI() {
       let ciudadTexto = document.getElementById('weatherCityInput').value.trim();
       const apiKey = document.getElementById('weatherApiKeyInput').value.trim();
@@ -2166,7 +2166,6 @@
           lon = geoData[0].lon;
           nombreCiudad = geoData[0].name;
         } else {
-          // Búsqueda de respaldo con el código de país Perú (PE)
           const fallbackRes = await fetch(`https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(ciudadTexto + ',PE')}&limit=1&appid=${apiKey}`);
           const fallbackData = await fallbackRes.json();
           
@@ -2179,7 +2178,7 @@
           }
         }
 
-        // 2. Consulta de telemetría climática con latitud y longitud precisas
+        // 2. Consulta de clima en tiempo real
         const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=es`);
         
         if (!res.ok) {
@@ -2194,14 +2193,22 @@
         probabilidadLluviaClima = data.clouds.all;
 
         document.getElementById('lblWeatherDesc').innerText = `${desc}, ${tempClima}°C`;
-        document.getElementById('lblRainProb').innerText = `${probabilidadLluviaClima}%`;
+        document.getElementById('lblRainProb').innerText = `${probabilidadLluviaClima}% (Nubes)`;
 
-        registrarLog(`🌤️ Clima en ${nombreCiudad} (La Libertad, PE): ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'success');
+        // Evaluación de lluvia real activa en la descripción
+        const climaTexto = desc.toLowerCase();
+        const estaLloviendoRealmente = climaTexto.includes('lluvia') || climaTexto.includes('llovizna') || climaTexto.includes('chubasco') || climaTexto.includes('tormenta');
 
-        if (probabilidadLluviaClima > 60) {
+        registrarLog(`🌤️ Clima en ${nombreCiudad}: ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'success');
+
+        // SOLO CANCELA RIEGO SI HAY PRECIPITACIÓN CONFIRMADA (NO SOLO POR NUBES)
+        if (estaLloviendoRealmente) {
           enviarComando('BOMBA_OFF');
-          dispararAlertaGlobal("Riego Pospuesto por Clima", `Se detectó alta probabilidad de lluvia (${probabilidadLluviaClima}%). Riego cancelado.`);
+          dispararAlertaGlobal("Riego Pospuesto por Lluvia Activa", `Se detectó ${desc} en la zona. Bomba pausada por seguridad.`);
+        } else {
+          registrarLog(`ℹ️ Cobertura nubosa alta (${probabilidadLluviaClima}%), pero sin lluvia efectiva. El riego continuará regulado por el sensor de suelo.`, 'info');
         }
+
       } catch (err) {
         registrarLog(`❌ Error al obtener clima: ${err.message}`, 'warn');
         document.getElementById('lblWeatherDesc').innerText = "Error API";
@@ -2213,7 +2220,7 @@
       if (historialDatos.length > 0) {
         const ult = historialDatos[historialDatos.length - 1];
         if (probabilidadLluviaClima > 60) {
-          msg += `Se prevé lluvia del ${probabilidadLluviaClima}%. Es recomendable no regar manualmente. `;
+          msg += `Hay alta cobertura nubosa (${probabilidadLluviaClima}%). El sistema vigilará el riego según la humedad real de la tierra. `;
         }
         if (ult.temp > 32) {
           msg += `La temperatura actual es elevada (${ult.temp}°C). Vigila la evapotranspiración. `;
