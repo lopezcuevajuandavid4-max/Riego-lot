@@ -1602,8 +1602,8 @@
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(texto);
         
-        utterance.rate = 1.0;   // Velocidad (0.8 a 1.2)
-        utterance.pitch = 1.05; // Tono (0.5 a 1.5)
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
         utterance.volume = 1.0;
 
         const voces = window.speechSynthesis.getVoices();
@@ -1695,10 +1695,23 @@
       }
     }
 
-    // PROCESADOR DE COMANDOS DE VOZ COMPLETO Y CORREGIDO
-    function procesarComandoVoz(cmd) {
+    // NORMALIZADOR PARA EXTRACTO DE PALABRAS CLAVE
+    function normalizarTexto(texto) {
+      return texto
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") 
+        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")      
+        .replace(/\b(por favor|el|la|los|las|un|una|del|de|para|me|mi|dime|cual|es|cuanto)\b/gi, "") 
+        .replace(/\s+/g, " ")                           
+        .trim();
+    }
+
+    // PROCESADOR DE COMANDOS DE VOZ FLEXIBLE
+    function procesarComandoVoz(rawCmd) {
+      const cmd = normalizarTexto(rawCmd);
+
       // 1. CROP SCORE
-      if (cmd.includes("score") || cmd.includes("salud del cultivo") || cmd.includes("salud de la planta")) {
+      if (/score|salud|estado de planta|como esta planta/.test(cmd)) {
         let sc = document.getElementById('txtScoreVal').innerText;
         let desc = document.getElementById('txtScoreDesc').innerText;
         let resp = `El Crop Score actual es del ${sc}, clasificado como ${desc}.`;
@@ -1706,8 +1719,9 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 2. DIAGNÓSTICO SUELO
-      else if (cmd.includes("estado del suelo") || cmd.includes("diagnostico") || cmd.includes("sustrato")) {
+
+      // 2. DIAGNÓSTICO SUELO / SUSTRATO
+      if (/suelo|sustrato|tierra|diagnostico/.test(cmd) && !/humedad/.test(cmd)) {
         let est = document.getElementById('txtEstadoSuelo').innerText;
         let rec = document.getElementById('txtRecomendacionSuelo').innerText;
         let resp = `Diagnóstico: ${est}. ${rec}`;
@@ -1715,32 +1729,45 @@
         hablarRespuesta(resp, true);
         return;
       }
+
       // 3. HUMEDAD SUELO
-      else if (cmd.includes("humedad del suelo") || cmd.includes("humedad suelo") || cmd.includes("cuanta humedad")) {
+      if (/humedad.*suelo|humedad.*tierra|cuanta agua tiene suelo|humedad/.test(cmd) && !/aire|ambiente/.test(cmd)) {
         let hum = document.getElementById('valSueloTxt').innerText;
         let resp = `La humedad actual del suelo es de ${hum}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
-      // 4. TEMPERATURA
-      else if (cmd.includes("temperatura") || cmd.includes("clima actual") || cmd.includes("grados")) {
+
+      // 4. FLUJO DE AGUA / CAUDAL
+      if (/flujo|caudal|litros por minuto|paso de agua|flujo de agua/.test(cmd)) {
+        let flujo = document.getElementById('valFlujoTxt').innerText;
+        let resp = `El flujo de agua actual registrado es de ${flujo}.`;
+        document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
+        hablarRespuesta(resp, true);
+        return;
+      }
+
+      // 5. TEMPERATURA
+      if (/temperatura|calor|frio|grados|clima/.test(cmd) && !/humedad/.test(cmd)) {
         let temp = document.getElementById('valTempTxt').innerText;
         let resp = `La temperatura ambiental registrada es de ${temp}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
-      // 5. HUMEDAD AIRE
-      else if (cmd.includes("humedad del aire") || cmd.includes("humedad aire")) {
+
+      // 6. HUMEDAD AIRE
+      if (/humedad.*aire|humedad.*ambiente/.test(cmd)) {
         let haire = document.getElementById('valHumAireTxt').innerText;
         let resp = `La humedad del aire es del ${haire}.`;
         document.getElementById('txtIASuggestion').innerText = "🗣️ " + resp;
         hablarRespuesta(resp, true);
         return;
       }
-      // 6. TANQUE Y AUTONOMÍA
-      else if (cmd.includes("tanque") || cmd.includes("cuanta agua queda") || cmd.includes("nivel del agua") || cmd.includes("autonomía")) {
+
+      // 7. TANQUE Y AUTONOMÍA
+      if (/tanque|nivel agua|agua queda|autonomia|reserva/.test(cmd)) {
         let tanq = document.getElementById('valTanqueTxt').innerText;
         let aut = document.getElementById('txtAutonomia').innerText;
         let resp = `El tanque de reserva está al ${tanq}. Quedan aproximadamente ${aut.replace('Autonomía: ', '')}.`;
@@ -1748,8 +1775,9 @@
         hablarRespuesta(resp, true);
         return;
       }
-      // 7. COSTO Y CONSUMO OPEX
-      else if (cmd.includes("costo") || cmd.includes("consumo") || cmd.includes("gastado") || cmd.includes("opex")) {
+
+      // 8. COSTO Y CONSUMO OPEX
+      if (/costo|consumo|gastado|gastamos|opex|soles|dinero/.test(cmd)) {
         let vol = document.getElementById('txtVolumenTotal').innerText;
         let opex = document.getElementById('txtOpexSoles').innerText;
         let resp = `Hasta el momento se han consumido ${vol} de agua con un costo operativo de ${opex}.`;
@@ -1758,126 +1786,99 @@
         return;
       }
 
-      // 8. CONTROL DE FERTIRRIEGO (DESACTIVAR / ACTIVAR)
-      if (cmd.includes("desactivar fertirriego") || cmd.includes("apagar fertirriego") || cmd.includes("quitar fertirriego") || cmd.includes("cancelar fertirriego")) {
-        if (fertirriegoActivo) {
-          toggleFertirriegoState();
-        } else {
-          hablarRespuesta("El fertirriego ya se encuentra desactivado.", true);
-        }
-        return;
-      }
-      else if (cmd.includes("activar fertirriego") || cmd.includes("encender fertirriego") || cmd.includes("iniciar fertirriego")) {
-        if (!fertirriegoActivo) {
-          toggleFertirriegoState();
-        } else {
-          hablarRespuesta("El fertirriego ya está activado.", true);
-        }
-        return;
-      }
-
-      // 9. CONTROL DE HORARIO DE DESCANSO / BLOQUEO (DESACTIVAR / ACTIVAR)
-      if (cmd.includes("desactivar descanso") || cmd.includes("quitar descanso") || cmd.includes("desactivar bloqueo") || cmd.includes("quitar bloqueo") || cmd.includes("apagar descanso") || cmd.includes("apagar bloqueo")) {
-        if (horarioBloqueoActivo) {
-          toggleHorarioBloqueoState();
-        } else {
-          hablarRespuesta("El horario de descanso ya está desactivado.", true);
-        }
-        return;
-      }
-      else if (cmd.includes("activar descanso") || cmd.includes("modo descanso") || cmd.includes("activar bloqueo") || cmd.includes("encender descanso") || cmd.includes("poner descanso")) {
-        if (!horarioBloqueoActivo) {
-          toggleHorarioBloqueoState();
-        } else {
-          hablarRespuesta("El horario de descanso ya se encuentra activo.", true);
+      // 9. FERTIRRIEGO
+      if (/fertirriego|fertilizante|nutrientes/.test(cmd)) {
+        if (/apaga|apagar|desactiva|desactivar|quita|quitar|cancela|cancelar|deten|detener|no/.test(cmd)) {
+          if (fertirriegoActivo) {
+            toggleFertirriegoState();
+          } else {
+            hablarRespuesta("El fertirriego ya se encuentra desactivado.", true);
+          }
+        } else if (/enciende|encender|activa|activar|pon|poner|inicia|iniciar|si/.test(cmd)) {
+          if (!fertirriegoActivo) {
+            toggleFertirriegoState();
+          } else {
+            hablarRespuesta("El fertirriego ya está activado.", true);
+          }
         }
         return;
       }
 
-      // 10. COMANDOS MATRIZ LED
-      if (cmd.includes("matriz led") || cmd.includes("pantalla led") || cmd.includes("mostrar leds")) {
-        abrirModal('modalLeds');
-        hablarRespuesta("Abriendo panel de la matriz LED.", true);
-      }
-      else if (cmd.includes("patrón uno") || cmd.includes("patron uno") || cmd.includes("cuadrícula") || cmd.includes("cuadricula")) {
-        seleccionarPatronLED('PATRON_1');
-        hablarRespuesta("Patrón cuadrícula activado en la matriz LED.", true);
-      }
-      else if (cmd.includes("patrón dos") || cmd.includes("patron dos") || cmd.includes("marco")) {
-        seleccionarPatronLED('PATRON_2');
-        hablarRespuesta("Patrón marco activado en la matriz LED.", true);
-      }
-      else if (cmd.includes("patrón tres") || cmd.includes("carita feliz") || cmd.includes("patron tres")) {
-        seleccionarPatronLED('PATRON_3');
-        hablarRespuesta("Carita feliz activada en la matriz LED.", true);
-      }
-      else if (cmd.includes("apagar leds") || cmd.includes("apagar matriz") || cmd.includes("apagar pantalla")) {
-        seleccionarPatronLED('PATRON_OFF');
-        hablarRespuesta("Matriz LED apagada.", true);
+      // 10. HORARIO DE DESCANSO / BLOQUEO
+      if (/descanso|bloqueo|modo noche|pausa/.test(cmd)) {
+        if (/apaga|apagar|desactiva|desactivar|quita|quitar|cancela|cancelar|deten|detener|no/.test(cmd)) {
+          if (horarioBloqueoActivo) {
+            toggleHorarioBloqueoState();
+          } else {
+            hablarRespuesta("El horario de descanso ya está desactivado.", true);
+          }
+        } else if (/enciende|encender|activa|activar|pon|poner|inicia|iniciar|si/.test(cmd)) {
+          if (!horarioBloqueoActivo) {
+            toggleHorarioBloqueoState();
+          } else {
+            hablarRespuesta("El horario de descanso ya se encuentra activo.", true);
+          }
+        }
+        return;
       }
 
-      // 11. ACCIONES DE RIEGO Y NAVEGACIÓN
-      else if (cmd.includes("encender bomba") || cmd.includes("regar")) {
-        if (verificarBloqueoHoraActual()) {
-          hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
-          return;
+      // 11. MATRIZ LED Y PATRONES
+      if (/matriz|pantalla|leds|luces/.test(cmd)) {
+        if (/abrir|mostrar|ver|pines|modal/.test(cmd)) {
+          abrirModal('modalLeds');
+          hablarRespuesta("Abriendo panel de la matriz LED.", true);
+        } else if (/apagar|apaga|quita|quitar|off/.test(cmd)) {
+          seleccionarPatronLED('PATRON_OFF');
+          hablarRespuesta("Matriz LED apagada.", true);
+        } else if (/cuadricula|patron uno|patron 1|uno/.test(cmd)) {
+          seleccionarPatronLED('PATRON_1');
+          hablarRespuesta("Patrón cuadrícula activado.", true);
+        } else if (/marco|patron dos|patron 2|dos/.test(cmd)) {
+          seleccionarPatronLED('PATRON_2');
+          hablarRespuesta("Patrón marco activado.", true);
+        } else if (/carita|feliz|sonrisa|patron tres|patron 3|tres/.test(cmd)) {
+          seleccionarPatronLED('PATRON_3');
+          hablarRespuesta("Carita feliz activada.", true);
         }
-        enviarComando('BOMBA_100'); 
-        hablarRespuesta("Encendiendo bomba de riego."); 
+        return;
       }
-      else if (cmd.includes("apagar bomba") || cmd.includes("parar")) { 
-        enviarComando('BOMBA_OFF'); 
-        hablarRespuesta("Bomba apagada."); 
+
+      // 12. CONTROL DE BOMBA Y RIEGO DIRECTO
+      if (/bomba|riego|regar|agua/.test(cmd)) {
+        if (/enciende|encender|activa|activar|inicia|iniciar|prende|prendas|dame/.test(cmd)) {
+          if (verificarBloqueoHoraActual()) {
+            hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
+            return;
+          }
+          enviarComando('BOMBA_100');
+          hablarRespuesta("Encendiendo bomba de riego.");
+        } else if (/apaga|apagar|desactiva|desactivar|para|parar|deten|detener|corta|cortar/.test(cmd)) {
+          enviarComando('BOMBA_OFF');
+          hablarRespuesta("Bomba apagada.");
+        }
+        return;
       }
-      else if (cmd.includes("lechuga")) { 
-        gestionarCambioPerfil("PERFIL:LECHUGA"); 
-        hablarRespuesta("Perfil lechuga activado."); 
+
+      // 13. PERFILES AGRONÓMICOS
+      if (/perfil|modo|planta|cultivo/.test(cmd)) {
+        if (/lechuga/.test(cmd)) { gestionarCambioPerfil("PERFIL:LECHUGA"); hablarRespuesta("Perfil lechuga activado."); }
+        else if (/rabanito/.test(cmd)) { gestionarCambioPerfil("PERFIL:RABANITO"); hablarRespuesta("Perfil rabanito activado."); }
+        else if (/suculenta/.test(cmd)) { gestionarCambioPerfil("PERFIL:SUCULENTAS"); hablarRespuesta("Perfil suculentas activado."); }
+        else if (/quinua/.test(cmd)) { gestionarCambioPerfil("PERFIL:QUINUA"); hablarRespuesta("Perfil quinua activado."); }
+        else if (/hortaliza/.test(cmd)) { gestionarCambioPerfil("PERFIL:HORTALIZAS"); hablarRespuesta("Perfil hortalizas activado."); }
+        else if (/arroz/.test(cmd)) { gestionarCambioPerfil("PERFIL:ARROZ"); hablarRespuesta("Perfil arroz activado."); }
+        else if (/viaje|vacaciones/.test(cmd)) { activarModoViaje(true); }
+        else if (/normal|casa/.test(cmd)) { activarModoViaje(false); }
+        return;
       }
-      else if (cmd.includes("rabanito")) { 
-        gestionarCambioPerfil("PERFIL:RABANITO"); 
-        hablarRespuesta("Perfil rabanito activado."); 
-      }
-      else if (cmd.includes("suculentas")) { 
-        gestionarCambioPerfil("PERFIL:SUCULENTAS"); 
-        hablarRespuesta("Perfil suculentas activado."); 
-      }
-      else if (cmd.includes("quinua")) { 
-        gestionarCambioPerfil("PERFIL:QUINUA"); 
-        hablarRespuesta("Perfil quinua activado."); 
-      }
-      else if (cmd.includes("hortalizas")) { 
-        gestionarCambioPerfil("PERFIL:HORTALIZAS"); 
-        hablarRespuesta("Perfil hortalizas activado."); 
-      }
-      else if (cmd.includes("arroz")) { 
-        gestionarCambioPerfil("PERFIL:ARROZ"); 
-        hablarRespuesta("Perfil arroz activado."); 
-      }
-      else if (cmd.includes("modo viaje")) { 
-        activarModoViaje(true); 
-      }
-      else if (cmd.includes("modo normal")) { 
-        activarModoViaje(false); 
-      }
-      else if (cmd.includes("resumen del día") || cmd.includes("resumen diario")) { 
-        generarResumenDiarioHablado(); 
-      }
-      else if (cmd.includes("reporte") || cmd.includes("diagnóstico")) { 
-        generarRecomendacionIA(); 
-      }
-      else if (cmd.includes("conectar bluetooth")) { 
-        conectarBLE(); 
-      }
-      else if (cmd.includes("exportar datos")) { 
-        exportarCSV(); 
-      }
-      else if (cmd.includes("mostrar pines") || cmd.includes("estado de los pines")) { 
-        abrirModal('modalPines'); 
-        hablarRespuesta("Abriendo monitor gráfico de pines.", true);
-      }
-      else if (cmd.includes("cerrar ventanas")) { 
-        cerrarModales(); 
-      }
+
+      // 14. OTROS COMANDOS
+      if (/resumen|dia|diario/.test(cmd)) { generarResumenDiarioHablado(); }
+      else if (/reporte|diagnostico|recomendacion|ia/.test(cmd)) { generarRecomendacionIA(); }
+      else if (/bluetooth|conectar|vincular/.test(cmd)) { conectarBLE(); }
+      else if (/exportar|descargar|csv|datos/.test(cmd)) { exportarCSV(); }
+      else if (/pines|hardware|board/.test(cmd)) { abrirModal('modalPines'); hablarRespuesta("Abriendo monitor gráfico de pines.", true); }
+      else if (/cerrar|ocultar|ventanas|modal/.test(cmd)) { cerrarModales(); }
     }
 
     function gestionarCambioPerfil(val) {
