@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sistema de gestión de riego automatizado</title>
+  <title>Sistema de gestión de riego automatizado — V6.6</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -1197,8 +1197,8 @@
               <span id="txtEstadoBomba" style="font-size:1.1rem; font-weight:800; color:var(--agri-red);">OFF</span>
             </div>
             <div class="btn-2col">
-              <button class="btn-pump-start" onclick="enviarComando('BOMBA_100')">► REGAR</button>
-              <button class="btn-pump-stop" onclick="enviarComando('BOMBA_OFF')">◼ PARAR</button>
+              <button class="btn-pump-start" onclick="controlarBomba('BOMBA_100')">► REGAR</button>
+              <button class="btn-pump-stop" onclick="controlarBomba('BOMBA_OFF')">◼ PARAR</button>
             </div>
           </div>
 
@@ -1220,13 +1220,13 @@
                   <label style="font-size:0.72rem; font-weight:700; color:var(--text-sub); display:flex; justify-content:space-between;">
                     <span>Humedad Mínima:</span> <span id="lblMinVal">30%</span>
                   </label>
-                  <input type="range" id="sliderMin" min="10" max="80" value="30" oninput="actualizarSlidersPersonalizados()">
+                  <input type="range" id="sliderMin" min="10" max="80" value="30" oninput="actualizarEtiquetasPersonalizadas()" onchange="actualizarSlidersPersonalizados()">
                 </div>
                 <div style="display:flex; flex-direction:column; gap:4px;">
                   <label style="font-size:0.72rem; font-weight:700; color:var(--text-sub); display:flex; justify-content:space-between;">
                     <span>Humedad Máxima:</span> <span id="lblMaxVal">70%</span>
                   </label>
-                  <input type="range" id="sliderMax" min="20" max="95" value="70" oninput="actualizarSlidersPersonalizados()">
+                  <input type="range" id="sliderMax" min="20" max="95" value="70" oninput="actualizarEtiquetasPersonalizadas()" onchange="actualizarSlidersPersonalizados()">
                 </div>
               </div>
             </div>
@@ -1511,13 +1511,23 @@
 
   <script>
     const SERVICE_UUID = "19b10000-e8f2-537e-4f6c-d104768a1214";
-    const CHARACTERISTIC_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
+    const TELEMETRIA_UUID = "19b10002-e8f2-537e-4f6c-d104768a1214";
+    const COMANDO_UUID = "19b10003-e8f2-537e-4f6c-d104768a1214";
+    const RESPUESTA_UUID = "19b10004-e8f2-537e-4f6c-d104768a1214";
 
     let bluetoothDevice;
-    let bluetoothCharacteristic;
+    let telemetriaCharacteristic = null;
+    let comandoCharacteristic = null;
+    let respuestaCharacteristic = null;
+    let comandoPendiente = null;
     let historialDatos = [];
+    let historialDBPromise = null;
+    let historialCargaPromise = Promise.resolve();
     let ultimaAlertaTime = 0;
+    const ultimaAlertaPorClave = Object.create(null);
     let volAcumuladoL = 0;
+    let fugaAnterior = false;
+    let tanqueBajoAnterior = false;
     let recognition;
     let isListening = false;
     let lineChart;
@@ -1529,6 +1539,10 @@
     let alertasActivas = false;
 
     let probabilidadLluviaClima = 0;
+    let precipitacionActualMm = 0;
+    let precipitacionPronosticadaMm = 0;
+    let pronosticoLluviaDisponible = false;
+    let probabilidadLluviaPronostico = 0;
     let proximoFertirriegoFecha = null;
     let fertirriegoActivo = false;
     
@@ -1675,23 +1689,18 @@
       if (isListening) { recognition.stop(); } else { recognition.start(); }
     }
 
-    function activarModoViaje(activar) {
+    async function activarModoViaje(activar) {
+      const comando = activar ? 'VIAJE_ON' : 'VIAJE_OFF';
+      const ok = await enviarComando(comando);
+      if (!ok) return false;
       const btnViaje = document.getElementById('btnModoViaje');
       const btnNormal = document.getElementById('btnModoNormal');
-      
-      if (activar) {
-        enviarComando('VIAJE_ON');
-        btnViaje.className = "btn-mode-select active-viaje";
-        btnNormal.className = "btn-mode-select";
-        registrarLog('✈️ MODO VIAJE ACTIVADO', 'success');
-        hablarRespuesta("Modo viaje activado.");
-      } else {
-        enviarComando('VIAJE_OFF');
-        btnViaje.className = "btn-mode-select";
-        btnNormal.className = "btn-mode-select active-normal";
-        registrarLog('🏠 MODO NORMAL ACTIVADO', 'info');
-        hablarRespuesta("Modo normal activado.");
+      if (btnViaje && btnNormal) {
+        btnViaje.className = activar ? 'btn-mode-select active-viaje' : 'btn-mode-select';
+        btnNormal.className = activar ? 'btn-mode-select' : 'btn-mode-select active-normal';
       }
+      registrarLog(activar ? '✈️ MODO VIAJE confirmado por Arduino.' : '🏠 MODO NORMAL confirmado por Arduino.', 'success');
+      return true;
     }
 
     function normalizarTexto(texto) {
@@ -1836,22 +1845,20 @@
             hablarRespuesta("No se puede activar el riego. Está dentro del horario de descanso programado.", true);
             return;
           }
-          enviarComando('BOMBA_100');
-          hablarRespuesta("Encendiendo bomba de riego.");
+          enviarComando('BOMBA_100').then(ok => hablarRespuesta(ok ? 'Arduino confirmó el encendido de la bomba.' : 'No se confirmó el encendido de la bomba.', true));
         } else if (/apaga|apagar|desactiva|desactivar|para|parar|deten|detener|corta|cortar/.test(cmd)) {
-          enviarComando('BOMBA_OFF');
-          hablarRespuesta("Bomba apagada.");
+          enviarComando('BOMBA_OFF').then(ok => hablarRespuesta(ok ? 'Arduino confirmó que la bomba está apagada.' : 'No se confirmó el apagado de la bomba.', true));
         }
         return;
       }
 
       if (/perfil|modo|planta|cultivo/.test(cmd)) {
-        if (/lechuga/.test(cmd)) { gestionarCambioPerfil("PERFIL:LECHUGA"); hablarRespuesta("Perfil lechuga activado."); }
-        else if (/rabanito/.test(cmd)) { gestionarCambioPerfil("PERFIL:RABANITO"); hablarRespuesta("Perfil rabanito activado."); }
-        else if (/suculenta/.test(cmd)) { gestionarCambioPerfil("PERFIL:SUCULENTAS"); hablarRespuesta("Perfil suculentas activado."); }
-        else if (/quinua/.test(cmd)) { gestionarCambioPerfil("PERFIL:QUINUA"); hablarRespuesta("Perfil quinua activado."); }
-        else if (/hortaliza/.test(cmd)) { gestionarCambioPerfil("PERFIL:HORTALIZAS"); hablarRespuesta("Perfil hortalizas activado."); }
-        else if (/arroz/.test(cmd)) { gestionarCambioPerfil("PERFIL:ARROZ"); hablarRespuesta("Perfil arroz activado."); }
+        if (/lechuga/.test(cmd)) { gestionarCambioPerfil("PERFIL:LECHUGA").then(ok => { if (ok) hablarRespuesta("Perfil lechuga confirmado por Arduino."); }); }
+        else if (/rabanito/.test(cmd)) { gestionarCambioPerfil("PERFIL:RABANITO").then(ok => { if (ok) hablarRespuesta("Perfil rabanito confirmado por Arduino."); }); }
+        else if (/suculenta/.test(cmd)) { gestionarCambioPerfil("PERFIL:SUCULENTAS").then(ok => { if (ok) hablarRespuesta("Perfil suculentas confirmado por Arduino."); }); }
+        else if (/quinua/.test(cmd)) { gestionarCambioPerfil("PERFIL:QUINUA").then(ok => { if (ok) hablarRespuesta("Perfil quinua confirmado por Arduino."); }); }
+        else if (/hortaliza/.test(cmd)) { gestionarCambioPerfil("PERFIL:HORTALIZAS").then(ok => { if (ok) hablarRespuesta("Perfil hortalizas confirmado por Arduino."); }); }
+        else if (/arroz/.test(cmd)) { gestionarCambioPerfil("PERFIL:ARROZ").then(ok => { if (ok) hablarRespuesta("Perfil arroz confirmado por Arduino."); }); }
         else if (/viaje|vacaciones/.test(cmd)) { activarModoViaje(true); }
         else if (/normal|casa/.test(cmd)) { activarModoViaje(false); }
         return;
@@ -1865,18 +1872,22 @@
       else if (/cerrar|ocultar|ventanas|modal/.test(cmd)) { cerrarModales(); }
     }
 
-    function gestionarCambioPerfil(val) {
-      const select = document.getElementById('selectPerfil');
-      if (select) select.value = val;
-      
+    async function gestionarCambioPerfil(val) {
       const panelSliders = document.getElementById('panelSlidersPersonalizado');
       if (val === "PERFIL:PERSONALIZADO") {
-        if (panelSliders) panelSliders.style.display = 'flex';
-        actualizarSlidersPersonalizados();
-      } else {
-        if (panelSliders) panelSliders.style.display = 'none';
-        enviarComando(val);
+        const min = Number(document.getElementById('sliderMin').value);
+        const max = Number(document.getElementById('sliderMax').value);
+        if (!Number.isFinite(min) || !Number.isFinite(max) || min < 10 || max > 95 || min >= max) {
+          registrarLog('⚠️ Rango personalizado inválido: mínimo debe ser menor que máximo (10–95%).', 'warn');
+          return false;
+        }
+        const ok = await enviarComando(`SET_HUM:${min},${max}`);
+        if (ok && panelSliders) panelSliders.style.display = 'flex';
+        return ok;
       }
+      const ok = await enviarComando(val);
+      if (ok && panelSliders) panelSliders.style.display = 'none';
+      return ok;
     }
 
     function generarResumenDiarioHablado() {
@@ -1926,36 +1937,31 @@
 
     function seleccionarPatronLED(cmd) { renderizarMatrizLED(cmd); enviarComando(cmd); }
 
-    function actualizarPinesBoard(humSuelo, caudal, pwmBomba) {
-      const sockA0 = document.getElementById('sock_A0');
-      const valA0 = document.getElementById('v_A0');
-      if (sockA0 && valA0) {
-        valA0.innerText = `${Math.round(humSuelo)}%`;
-        if (humSuelo > 0) sockA0.classList.add('active-analog');
-        else sockA0.classList.remove('active-analog');
+    function actualizarPinesBoard(datos) {
+      // A0-A5: índices 5-10 de la trama CSV.
+      for (let i = 0; i <= 5; i++) {
+        const socket = document.getElementById(`sock_A${i}`);
+        const valor = document.getElementById(`v_A${i}`);
+        const lectura = Number(datos[5 + i]);
+        if (socket && valor) {
+          valor.innerText = Number.isFinite(lectura) ? String(Math.round(lectura)) : '--';
+          socket.classList.toggle('active-analog', Number.isFinite(lectura) && lectura > 0);
+        }
       }
 
-      const sockD2 = document.getElementById('sock_D2');
-      const valD2 = document.getElementById('v_D2');
-      if (sockD2 && valD2) {
-        valD2.innerText = caudal > 0.1 ? 'PULSO' : 'LOW';
-        if (caudal > 0.1) sockD2.classList.add('active-digital');
-        else sockD2.classList.remove('active-digital');
-      }
-
-      const sockD3 = document.getElementById('sock_D3');
-      const valD3 = document.getElementById('v_D3');
-      if (sockD3 && valD3) {
-        valD3.innerText = pwmBomba > 0 ? `${pwmBomba}` : 'OFF';
-        if (pwmBomba > 0) sockD3.classList.add('active-digital');
-        else sockD3.classList.remove('active-digital');
-      }
-
-      const sockD4 = document.getElementById('sock_D4');
-      const valD4 = document.getElementById('v_D4');
-      if (sockD4 && valD4) {
-        valD4.innerText = 'OK';
-        sockD4.classList.add('active-digital');
+      // D0-D13: índices 11-24. D3 contiene el PWM aplicado al MOSFET.
+      for (let pin = 0; pin <= 13; pin++) {
+        const socket = document.getElementById(`sock_D${pin}`);
+        const valor = document.getElementById(`v_D${pin}`);
+        const lectura = Number(datos[11 + pin]);
+        if (!socket || !valor) continue;
+        if (pin === 3) {
+          valor.innerText = Number.isFinite(lectura) ? String(Math.round(lectura)) : '--';
+          socket.classList.toggle('active-digital', Number.isFinite(lectura) && lectura > 0);
+        } else {
+          valor.innerText = Number.isFinite(lectura) ? String(Math.round(lectura)) : '--';
+          socket.classList.toggle('active-digital', Number.isFinite(lectura) && lectura > 0);
+        }
       }
     }
 
@@ -1977,7 +1983,13 @@
       const hora = new Date().toLocaleTimeString();
       const divLine = document.createElement('div');
       divLine.className = 'log-line';
-      divLine.innerHTML = `<span class="log-time">[${hora}]</span><span class="log-msg ${tipo}">${mensaje}</span>`;
+      const spanHora = document.createElement('span');
+      spanHora.className = 'log-time';
+      spanHora.textContent = `[${hora}]`;
+      const spanMensaje = document.createElement('span');
+      spanMensaje.className = `log-msg ${tipo}`;
+      spanMensaje.textContent = mensaje;
+      divLine.append(spanHora, spanMensaje);
       container.appendChild(divLine);
       container.scrollTop = container.scrollHeight;
     }
@@ -1988,14 +2000,69 @@
       registrarLog('Consola limpiada por el usuario.', 'info');
     }
 
+    async function configurarCaracteristicasBLE(server) {
+      const service = await server.getPrimaryService(SERVICE_UUID);
+      telemetriaCharacteristic = await service.getCharacteristic(TELEMETRIA_UUID);
+      comandoCharacteristic = await service.getCharacteristic(COMANDO_UUID);
+      respuestaCharacteristic = await service.getCharacteristic(RESPUESTA_UUID);
+
+      await telemetriaCharacteristic.startNotifications();
+      telemetriaCharacteristic.removeEventListener('characteristicvaluechanged', recibirTelemetria);
+      telemetriaCharacteristic.addEventListener('characteristicvaluechanged', recibirTelemetria);
+
+      await respuestaCharacteristic.startNotifications();
+      respuestaCharacteristic.removeEventListener('characteristicvaluechanged', recibirRespuestaArduino);
+      respuestaCharacteristic.addEventListener('characteristicvaluechanged', recibirRespuestaArduino);
+    }
+
+    function recibirRespuestaArduino(event) {
+      const respuesta = new TextDecoder('utf-8').decode(event.target.value).trim();
+      if (!respuesta || respuesta === 'LISTO') return;
+      const esError = respuesta.startsWith('ERROR:');
+      registrarLog(`📩 Arduino: ${respuesta}`, esError ? 'danger' : 'success');
+      if (comandoPendiente && /^(OK:|ERROR:)/.test(respuesta)) {
+        const pendiente = comandoPendiente;
+        const cmd = pendiente.comando;
+        const esperada = cmd === 'CLIMA_LLUVIA_ON' ? respuesta === 'OK:CLIMA_LLUVIA_ON'
+          : cmd === 'CLIMA_LLUVIA_OFF' ? respuesta === 'OK:CLIMA_LLUVIA_OFF'
+          : cmd.startsWith('PERFIL:') ? respuesta === `OK:PERFIL:${pendiente.perfilIndex}`
+          : cmd.startsWith('SET_HUM:') ? respuesta.startsWith('OK:SET_HUM:')
+          : ['BOMBA_ON','BOMBA_100','BOMBA_75','BOMBA_50','BOMBA_25'].includes(cmd) ? respuesta === 'OK:BOMBA_ENCENDIDA'
+          : ['BOMBA_OFF','OFF'].includes(cmd) ? respuesta === 'OK:BOMBA_APAGADA'
+          : cmd === 'VIAJE_ON' ? respuesta === 'OK:VIAJE_ON'
+          : cmd === 'VIAJE_OFF' ? respuesta === 'OK:VIAJE_OFF'
+          : ['PATRON_1','PATRON_2','PATRON_3','PATRON_OFF'].includes(cmd) ? respuesta === `OK:${cmd}`
+          : respuesta.startsWith('OK:');
+        if (esError || esperada) {
+          comandoPendiente = null;
+          clearTimeout(pendiente.timeout);
+          pendiente.resolve(!esError && esperada);
+        } else {
+          registrarLog(`⚠️ Confirmación BLE no correspondiente al comando pendiente (${respuesta}).`, 'warn');
+        }
+      }
+    }
+
     function configurarAutoReconexion(device) {
+      if (device.__riegoReconnectListener) return;
+      device.__riegoReconnectListener = true;
       device.addEventListener('gattserverdisconnected', async () => {
+        telemetriaCharacteristic = null;
+        comandoCharacteristic = null;
+        respuestaCharacteristic = null;
+        if (comandoPendiente) { clearTimeout(comandoPendiente.timeout); comandoPendiente.resolve(false); comandoPendiente = null; }
+        fugaAnterior = false;
+        tanqueBajoAnterior = false;
+        document.getElementById('txtEstadoBomba').innerText = 'SIN CONEXIÓN';
+        document.getElementById('txtSoftStart').innerText = 'Sin telemetría';
+        document.getElementById('flagFuga').innerText = 'SIN DATOS';
+        document.getElementById('valFlujoTxt').innerText = '-- L/min';
+        document.getElementById('pipeCapsule').classList.remove('active');
         const badge = document.getElementById('statusBadge');
         const txt = document.getElementById('statusText');
         badge.className = 'badge-status reconnecting';
         txt.innerText = 'RECONECTANDO...';
-        registrarLog('⚠️ Conexión Bluetooth perdida. Intentando re-vincular...', 'warn');
-        hablarRespuesta("Atención: Conexión Bluetooth perdida. Intentando reconectar.", true);
+        registrarLog('⚠️ Conexión Bluetooth perdida. Intentando reconectar...', 'warn');
 
         let intentos = 0;
         autoReconnectActive = true;
@@ -2004,29 +2071,23 @@
             intentos++;
             await new Promise(res => setTimeout(res, 2500));
             const server = await device.gatt.connect();
-            const service = await server.getPrimaryService(SERVICE_UUID);
-            bluetoothCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-            await bluetoothCharacteristic.startNotifications();
-            bluetoothCharacteristic.addEventListener('characteristicvaluechanged', recibirTelemetria);
-
+            await configurarCaracteristicasBLE(server);
             badge.className = 'badge-status connected';
             txt.innerText = 'ONLINE';
+            document.getElementById('rssiVal').innerText = '(BLE OK)';
             autoReconnectActive = false;
-            registrarLog('✅ Reconexión Bluetooth restablecida exitosamente.', 'success');
-            hablarRespuesta("Reconexión Bluetooth exitosa.", true);
+            registrarLog('✅ Reconexión BLE restablecida. Telemetría y comandos disponibles.', 'success');
             return;
           } catch (e) {
-            registrarLog(`Intento de reconexión ${intentos}/5 fallido...`, 'warn');
+            registrarLog(`Intento de reconexión ${intentos}/5 fallido: ${e.message || e}`, 'warn');
           }
         }
 
-        if (autoReconnectActive) {
-          badge.className = 'badge-status';
-          txt.innerText = 'OFFLINE';
-          autoReconnectActive = false;
-          registrarLog('❌ Fallo definitivo de reconexión BLE.', 'danger');
-          hablarRespuesta("No se pudo restablecer la conexión Bluetooth.", true);
-        }
+        badge.className = 'badge-status';
+        txt.innerText = 'OFFLINE';
+        document.getElementById('rssiVal').innerText = '';
+        autoReconnectActive = false;
+        registrarLog('❌ No se pudo restablecer la conexión BLE.', 'danger');
       });
     }
 
@@ -2068,12 +2129,26 @@
     function abrirModal(id) { document.getElementById(id).style.display = 'flex'; }
     function cerrarModales() { document.querySelectorAll('.modal-overlay').forEach(m => m.style.display = 'none'); }
 
-    function actualizarSlidersPersonalizados() {
+    function actualizarEtiquetasPersonalizadas() {
       const min = document.getElementById('sliderMin').value;
       const max = document.getElementById('sliderMax').value;
       document.getElementById('lblMinVal').innerText = min + '%';
       document.getElementById('lblMaxVal').innerText = max + '%';
-      enviarComando(`SET_HUM:${min},${max}`);
+    }
+
+    async function actualizarSlidersPersonalizados() {
+      actualizarEtiquetasPersonalizadas();
+      const min = Number(document.getElementById('sliderMin').value);
+      const max = Number(document.getElementById('sliderMax').value);
+      if (min >= max) {
+        registrarLog('⚠️ La humedad mínima debe ser menor que la máxima.', 'warn');
+        return;
+      }
+      if (document.getElementById('selectPerfil').value !== 'PERFIL:PERSONALIZADO') {
+        registrarLog('ℹ️ Selecciona primero el perfil personalizado para aplicar estos límites.', 'info');
+        return;
+      }
+      await enviarComando(`SET_HUM:${min},${max}`);
     }
 
     function reproducirTonoAlerta() {
@@ -2126,8 +2201,10 @@
     }
 
     function dispararAlertaGlobal(titulo, mensaje) {
-      let ahora = Date.now();
-      if (ahora - ultimaAlertaTime > 30000) {
+      const ahora = Date.now();
+      const clave = String(titulo || 'alerta').toLowerCase();
+      if (ahora - (ultimaAlertaPorClave[clave] || 0) > 30000) {
+        ultimaAlertaPorClave[clave] = ahora;
         ultimaAlertaTime = ahora;
         reproducirTonoAlerta();
         registrarLog(`🚨 ALERTA CRÍTICA: ${titulo} - ${mensaje}`, 'danger');
@@ -2188,26 +2265,46 @@
         }
         
         const data = await res.json();
-
-        const desc = data.weather[0].description;
-        const tempClima = data.main.temp;
-        probabilidadLluviaClima = data.clouds.all;
-
+        const desc = data.weather?.[0]?.description || 'sin descripción';
+        const tempClima = Number(data.main?.temp ?? 0);
+        precipitacionActualMm = Number(data.rain?.['1h'] ?? data.rain?.['3h'] ?? 0);
+        probabilidadLluviaClima = 0;
+        precipitacionPronosticadaMm = 0;
+        pronosticoLluviaDisponible = false;
+        try {
+          const forecastRes = await fetch(`https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=es`);
+          if (forecastRes.ok) {
+            const forecast = await forecastRes.json();
+            const siguiente = forecast.list?.[0];
+            if (siguiente) {
+              probabilidadLluviaClima = Number(siguiente.pop ?? 0) * 100;
+              precipitacionPronosticadaMm = Number(siguiente.rain?.['3h'] ?? 0);
+              pronosticoLluviaDisponible = true;
+            }
+          }
+        } catch (forecastError) {
+          registrarLog('⚠️ No se pudo consultar el pronóstico; se conserva solo la precipitación actual.', 'warn');
+        }
+        const estaLloviendoRealmente = precipitacionActualMm > 0.1;
+        const bloquearPorPronostico = pronosticoLluviaDisponible && probabilidadLluviaClima >= 80 && precipitacionPronosticadaMm >= 1.0;
+        const bloquearRiegoPorClima = estaLloviendoRealmente || bloquearPorPronostico;
         document.getElementById('lblWeatherDesc').innerText = `${desc}, ${tempClima}°C`;
-        document.getElementById('lblRainProb').innerText = `${probabilidadLluviaClima}% (Nubes)`;
+        document.getElementById('lblRainProb').innerText = `${Math.round(probabilidadLluviaClima)}% prob. · ${precipitacionActualMm.toFixed(1)} mm actual`;
+        registrarLog(`🌤️ Clima en ${nombreCiudad}: ${desc}, ${tempClima}°C. Lluvia actual: ${precipitacionActualMm.toFixed(1)} mm; prob. próxima: ${Math.round(probabilidadLluviaClima)}%.`, 'success');
 
-        // Evaluación de lluvia real activa en la descripción
-        const climaTexto = desc.toLowerCase();
-        const estaLloviendoRealmente = climaTexto.includes('lluvia') || climaTexto.includes('llovizna') || climaTexto.includes('chubasco') || climaTexto.includes('tormenta');
-
-        registrarLog(`🌤️ Clima en ${nombreCiudad}: ${desc}, ${tempClima}°C. Nubosidad: ${probabilidadLluviaClima}%`, 'success');
-
-        // SOLO CANCELA RIEGO SI HAY PRECIPITACIÓN CONFIRMADA (NO SOLO POR NUBES)
-        if (estaLloviendoRealmente) {
-          enviarComando('BOMBA_OFF');
-          dispararAlertaGlobal("Riego Pospuesto por Lluvia Activa", `Se detectó ${desc} en la zona. Bomba pausada por seguridad.`);
+        // No inferir lluvia a partir de nubosidad: usar mm observados y pronóstico POP.
+        if (bloquearRiegoPorClima) {
+          const confirmacionClima = await enviarComando('CLIMA_LLUVIA_ON');
+          if (confirmacionClima) {
+            dispararAlertaGlobal('Riego bloqueado por clima', estaLloviendoRealmente
+              ? `Se midieron ${precipitacionActualMm.toFixed(1)} mm de precipitación actual. El Arduino bloqueó el riego.`
+              : `Pronóstico de ${Math.round(probabilidadLluviaClima)}% y ${precipitacionPronosticadaMm.toFixed(1)} mm. El Arduino bloqueó el riego preventivamente.`);
+          }
+        } else if (pronosticoLluviaDisponible) {
+          const desbloqueo = await enviarComando('CLIMA_LLUVIA_OFF');
+          if (desbloqueo) registrarLog('☀️ Sin lluvia significativa actual ni pronosticada; bloqueo meteorológico retirado por Arduino.', 'info');
         } else {
-          registrarLog(`ℹ️ Cobertura nubosa alta (${probabilidadLluviaClima}%), pero sin lluvia efectiva. El riego continuará regulado por el sensor de suelo.`, 'info');
+          registrarLog('⚠️ Pronóstico no disponible: se conserva el estado meteorológico anterior para no retirar un bloqueo sin datos.', 'warn');
         }
 
       } catch (err) {
@@ -2217,26 +2314,41 @@
     }
 
     function generarRecomendacionIA() {
-      let msg = "🤖 Diagnóstico del Asistente: ";
-      if (historialDatos.length > 0) {
-        const ult = historialDatos[historialDatos.length - 1];
-        if (probabilidadLluviaClima > 60) {
-          msg += `Hay alta cobertura nubosa (${probabilidadLluviaClima}%). El sistema vigilará el riego según la humedad real de la tierra. `;
-        }
-        if (ult.temp > 32) {
-          msg += `La temperatura actual es elevada (${ult.temp}°C). Vigila la evapotranspiración. `;
-        }
-        if (ult.humSuelo < 30) {
-          msg += `El sustrato presenta déficit hídrico (${ult.humSuelo}%). `;
-        } else {
-          msg += `El sustrato mantiene un nivel hídrico óptimo del ${ult.humSuelo}%. `;
-        }
-      } else {
-        msg += "Conecte el Bluetooth para recopilar datos de telemetría y generar un informe completo.";
+      const msg = [];
+      const n = historialDatos.length;
+      if (!n) {
+        const texto = 'Asistente de diagnóstico: conecta el Arduino por Bluetooth para analizar sensores e historial. Este módulo aplica reglas agronómicas locales; no es un modelo generativo externo.';
+        document.getElementById('txtIASuggestion').innerText = texto;
+        hablarRespuesta(texto, true);
+        return;
       }
-
-      document.getElementById('txtIASuggestion').innerText = msg;
-      hablarRespuesta(msg, true);
+      const ult = historialDatos[n - 1];
+      const ventana = historialDatos.slice(Math.max(0, n - 6));
+      const primero = ventana[0];
+      const deltaH = Number(ult.humSuelo) - Number(primero.humSuelo);
+      const promedio = campo => ventana.reduce((a, r) => a + Number(r[campo] || 0), 0) / ventana.length;
+      const humProm = promedio('humSuelo');
+      const tempProm = promedio('temp');
+      const rhProm = promedio('humAire');
+      const umbralDato = Number(ult.umbral);
+      const umbral = Number.isFinite(umbralDato) ? umbralDato : 35;
+      if (Number(ult.fuga) === 1) msg.push('Alerta prioritaria: el Arduino confirma caudal persistente con la bomba apagada. Revisa conexiones, válvulas y posibles pérdidas.');
+      if (Number(ult.bomba) === 1 && Number(ult.pctTanque) <= 15) msg.push('Riesgo de trabajo en seco: el tanque está en nivel crítico; verifica la alimentación de agua.');
+      if (Number(ult.humSuelo) < umbral) msg.push(`Humedad del sustrato (${Number(ult.humSuelo).toFixed(1)}%) por debajo del umbral activo (${umbral.toFixed(1)}%): se requiere riego si las protecciones lo permiten.`);
+      else msg.push(`Humedad del sustrato dentro del objetivo actual (${Number(ult.humSuelo).toFixed(1)}%).`);
+      if (ventana.length >= 2) {
+        if (deltaH < -3) msg.push(`La humedad cayó ${Math.abs(deltaH).toFixed(1)} puntos en las últimas ${ventana.length} lecturas: vigila la pérdida de humedad.`);
+        else if (deltaH > 3) msg.push(`La humedad aumentó ${deltaH.toFixed(1)} puntos en las últimas ${ventana.length} lecturas: el riego/infiltración está elevando la humedad.`);
+      }
+      if (tempProm >= 32) msg.push(`Temperatura media reciente elevada (${tempProm.toFixed(1)} °C): aumenta la vigilancia de evapotranspiración.`);
+      if (rhProm >= 85) msg.push(`Humedad ambiental media alta (${rhProm.toFixed(1)}%): vigila ventilación y riesgo de enfermedades fúngicas.`);
+      if (Number(ult.pctTanque) <= 25) msg.push(`Reserva de agua baja (${Number(ult.pctTanque).toFixed(0)}%): programa una recarga.`);
+      if (probabilidadLluviaClima >= 70 && precipitacionPronosticadaMm > 0) msg.push(`Pronóstico: ${Math.round(probabilidadLluviaClima)}% de probabilidad y ${precipitacionPronosticadaMm.toFixed(1)} mm previstos; considera posponer el siguiente ciclo, sin sustituir la lectura local.`);
+      if (msg.length === 1 && humProm >= umbral) msg.push('Mantén el monitoreo y compara las próximas lecturas para confirmar estabilidad.');
+      const texto = `🤖 Asistente de diagnóstico local (basado en ${Math.min(n, 6)} lecturas recientes): ${msg.join(' ')}`;
+      document.getElementById('txtIASuggestion').innerText = texto;
+      registrarLog('🧠 Diagnóstico local actualizado con tendencias de sensores e historial.', 'info');
+      hablarRespuesta(texto, true);
     }
 
     function toggleFertirriegoState() {
@@ -2385,69 +2497,173 @@
       });
     }
 
-    function guardarLecturaEnStorage(registro) {
-      historialDatos.push(registro);
-      if (historialDatos.length > 500) historialDatos.shift();
-      try { localStorage.setItem('historialRiego', JSON.stringify(historialDatos)); } catch (e) {}
+    function abrirBaseDatosHistorial() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) return resolve(null);
+        const request = indexedDB.open('RiegoIoT_Historial', 1);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains('lecturas')) {
+            db.createObjectStore('lecturas', { keyPath: 'id', autoIncrement: true });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
     }
 
-    function cargarHistorialGuardado() {
-      const datos = localStorage.getItem('historialRiego');
-      if (datos) {
+    async function guardarLecturaEnStorage(registro) {
+      historialDatos.push(registro);
+      try {
+        const db = await historialDBPromise;
+        if (!db) throw new Error('IndexedDB no disponible');
+        const tx = db.transaction('lecturas', 'readwrite');
+        tx.objectStore('lecturas').add(registro);
+        await new Promise((resolve, reject) => {
+          tx.oncomplete = resolve;
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        });
+      } catch (e) {
+        // Respaldo compatible: no recorta silenciosamente el historial existente.
         try {
-          historialDatos = JSON.parse(datos);
-          historialDatos.forEach(r => {
-            lineChart.data.labels.push(r.hora);
-            lineChart.data.datasets[0].data.push(r.humSuelo);
-            lineChart.data.datasets[1].data.push(r.temp);
-            lineChart.data.datasets[2].data.push(r.humAire);
+          localStorage.setItem('historialRiego', JSON.stringify(historialDatos));
+        } catch (storageError) {
+          registrarLog('❌ No se pudo guardar el historial. Exporta el CSV para respaldar los datos.', 'danger');
+        }
+      }
+    }
 
-            financialChart.data.labels.push(r.hora);
-            financialChart.data.datasets[0].data.push(r.volL);
-            financialChart.data.datasets[1].data.push(r.opex);
+    async function cargarHistorialGuardado() {
+      try {
+        if (!historialDBPromise) historialDBPromise = abrirBaseDatosHistorial();
+        const db = await historialDBPromise;
+        let registros = [];
+        if (db) {
+          registros = await new Promise((resolve, reject) => {
+            const tx = db.transaction('lecturas', 'readonly');
+            const req = tx.objectStore('lecturas').getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => reject(req.error);
           });
-          lineChart.update();
-          financialChart.update();
-          registrarLog(`📂 Historial local restaurado (${historialDatos.length} registros).`, 'info');
-        } catch (e) {}
+
+          // Migración de los registros antiguos de localStorage a IndexedDB; el respaldo viejo se conserva.
+          if (registros.length === 0) {
+            const legado = localStorage.getItem('historialRiego');
+            if (legado) {
+              try {
+                const antiguos = JSON.parse(legado);
+                if (Array.isArray(antiguos) && antiguos.length) {
+                  const tx = db.transaction('lecturas', 'readwrite');
+                  const store = tx.objectStore('lecturas');
+                  antiguos.forEach(r => store.add(r));
+                  await new Promise((resolve, reject) => {
+                    tx.oncomplete = resolve;
+                    tx.onerror = () => reject(tx.error);
+                    tx.onabort = () => reject(tx.error);
+                  });
+                  registros = await new Promise((resolve, reject) => {
+                    const req = db.transaction('lecturas', 'readonly').objectStore('lecturas').getAll();
+                    req.onsuccess = () => resolve(req.result || []);
+                    req.onerror = () => reject(req.error);
+                  });
+                  registrarLog(`📦 Historial anterior migrado: ${antiguos.length} registros. Se conservó la copia local.`, 'success');
+                }
+              } catch (e) {
+                registrarLog('⚠️ No se pudo migrar automáticamente el historial anterior; la copia local permanece intacta.', 'warn');
+              }
+            }
+          }
+        } else {
+          const legado = localStorage.getItem('historialRiego');
+          if (legado) registros = JSON.parse(legado);
+        }
+
+        historialDatos = Array.isArray(registros) ? registros : [];
+        const ultimos = historialDatos.slice(-20);
+        lineChart.data.labels = [];
+        lineChart.data.datasets.forEach(ds => ds.data = []);
+        financialChart.data.labels = [];
+        financialChart.data.datasets.forEach(ds => ds.data = []);
+        ultimos.forEach(r => {
+          lineChart.data.labels.push(r.hora);
+          lineChart.data.datasets[0].data.push(Number(r.humSuelo));
+          lineChart.data.datasets[1].data.push(Number(r.temp));
+          lineChart.data.datasets[2].data.push(Number(r.humAire));
+          financialChart.data.labels.push(r.hora);
+          financialChart.data.datasets[0].data.push(Number(r.volL));
+          financialChart.data.datasets[1].data.push(Number(r.opex));
+        });
+        const ultimo = historialDatos[historialDatos.length - 1];
+        if (ultimo && Number.isFinite(Number(ultimo.volL))) volAcumuladoL = Number(ultimo.volL);
+        lineChart.update();
+        financialChart.update();
+        registrarLog(`📂 Historial restaurado (${historialDatos.length} registros).`, 'info');
+      } catch (e) {
+        registrarLog(`⚠️ Error al cargar historial: ${e.message || e}`, 'warn');
       }
     }
 
     async function conectarBLE() {
       try {
-        registrarLog('⚡ Solicitando escaneo de dispositivos Bluetooth...', 'info');
+        if (!('bluetooth' in navigator)) throw new Error('Este navegador no admite Web Bluetooth. Usa Chrome o Edge en un contexto seguro (HTTPS o localhost).');
+        await historialCargaPromise;
+        registrarLog('⚡ Buscando Arduino Uno R4 WiFi por BLE...', 'info');
         bluetoothDevice = await navigator.bluetooth.requestDevice({
           filters: [{ name: 'Matriz_LED_R4' }],
           optionalServices: [SERVICE_UUID]
         });
 
         configurarAutoReconexion(bluetoothDevice);
-
         const server = await bluetoothDevice.gatt.connect();
-        const service = await server.getPrimaryService(SERVICE_UUID);
-        bluetoothCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
-        await bluetoothCharacteristic.startNotifications();
-        bluetoothCharacteristic.addEventListener('characteristicvaluechanged', recibirTelemetria);
+        await configurarCaracteristicasBLE(server);
 
         document.getElementById('statusBadge').className = 'badge-status connected';
-        document.getElementById('statusText').innerText = "ONLINE";
-        document.getElementById('rssiVal').innerText = "(BLE OK)";
-        
-        registrarLog('⚡ Conexión exitosa con Arduino Uno R4 WiFi.', 'success');
-        hablarRespuesta("Arduino R4 conectado exitosamente.", true);
+        document.getElementById('statusText').innerText = 'ONLINE';
+        document.getElementById('rssiVal').innerText = '(BLE OK)';
+        registrarLog('⚡ BLE conectado: telemetría, comandos y confirmaciones separados.', 'success');
       } catch (error) {
-        registrarLog('❌ Fallo al establecer conexión BLE o cancelación por usuario.', 'warn');
+        registrarLog(`❌ No se pudo conectar por BLE: ${error.message || error}`, 'danger');
       }
     }
 
     async function enviarComando(cmd) {
-      if (!bluetoothCharacteristic) {
-        registrarLog(`⚠️ Intento de envío (${cmd}) fallido: Sin conexión BLE.`, 'warn');
-        return;
+      if (!comandoCharacteristic || !bluetoothDevice?.gatt?.connected) {
+        registrarLog(`⚠️ No se envió ${cmd}: no hay conexión BLE activa.`, 'warn');
+        return false;
       }
-      let encoder = new TextEncoder();
-      await bluetoothCharacteristic.writeValue(encoder.encode(cmd));
-      registrarLog(`📤 Comando transmitido por BLE: ${cmd}`, 'success');
+      if (comandoPendiente) {
+        registrarLog('⚠️ Hay otro comando esperando confirmación del Arduino. Intenta nuevamente en unos segundos.', 'warn');
+        return false;
+      }
+      let resolverAck;
+      const ackPromise = new Promise(resolve => { resolverAck = resolve; });
+      const pendiente = { comando: cmd, resolve: resolverAck, timeout: null, perfilIndex: ({'PERFIL:RABANITO':0,'PERFIL:SUCULENTAS':1,'PERFIL:QUINUA':2,'PERFIL:HORTALIZAS':3,'PERFIL:ARROZ':4,'PERFIL:LECHUGA':5,'PERFIL:PERSONALIZADO':6})[cmd] };
+      comandoPendiente = pendiente;
+      pendiente.timeout = setTimeout(() => {
+        if (comandoPendiente === pendiente) comandoPendiente = null;
+        registrarLog(`⏱️ Sin confirmación de Arduino para ${cmd}. El envío BLE no garantiza que se haya aplicado.`, 'warn');
+        resolverAck(false);
+      }, 4500);
+      try {
+        const bytes = new TextEncoder().encode(cmd);
+        if (comandoCharacteristic.writeValueWithResponse) await comandoCharacteristic.writeValueWithResponse(bytes);
+        else await comandoCharacteristic.writeValue(bytes);
+        registrarLog(`📤 Comando enviado; esperando confirmación: ${cmd}`, 'info');
+        return await ackPromise;
+      } catch (error) {
+        if (comandoPendiente === pendiente) comandoPendiente = null;
+        clearTimeout(pendiente.timeout);
+        resolverAck(false);
+        registrarLog(`❌ Error al enviar ${cmd}: ${error.message || error}`, 'danger');
+        return false;
+      }
+    }
+
+    async function controlarBomba(comando) {
+      const ok = await enviarComando(comando);
+      if (ok) registrarLog(comando === 'BOMBA_OFF' ? '🛑 Apagado confirmado por Arduino.' : '💧 Encendido confirmado por Arduino.', 'success');
+      return ok;
     }
 
     function exportarCSV() {
@@ -2455,152 +2671,191 @@
         registrarLog('⚠️ No hay datos en el historial para exportar.', 'warn');
         return;
       }
-      let csv = "data:text/csv;charset=utf-8,Hora,Humedad_Suelo,Temp,Hum_Aire,Tanque,Caudal,Volumen_L,Opex_Soles,Score\n";
-      historialDatos.forEach(r => csv += `${r.hora},${r.humSuelo},${r.temp},${r.humAire},${r.pctTanque},${r.caudal},${r.volL},${r.opex},${r.score}\n`);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodeURI(csv));
-      link.setAttribute("download", `Telemetria.csv`);
+      const columnas = ['timestamp','hora','humSuelo','temp','humAire','pctTanque','caudal','caudalFiltrado','pwm','bomba','fuga','volL','energiaWh','opex','score','perfil','modoViaje','umbral','bloqueoLluvia'];
+      const escapar = valor => `"${String(valor ?? '').replace(/"/g, '""')}"`;
+      const filas = [columnas.join(',')];
+      historialDatos.forEach(r => filas.push(columnas.map(c => escapar(r[c])).join(',')));
+      const blob = new Blob(['\uFEFF' + filas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Historial_Riego_${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(link);
       link.click();
-      registrarLog('📥 Reporte CSV descargado correctamente.', 'info');
+      link.remove();
+      URL.revokeObjectURL(url);
+      registrarLog(`📥 CSV exportado: ${historialDatos.length} registros.`, 'success');
     }
 
     function recibirTelemetria(event) {
-      let decoder = new TextDecoder('utf-8');
-      let trama = decoder.decode(event.target.value).trim();
-      let d = trama.split(',');
+      const trama = new TextDecoder('utf-8').decode(event.target.value).trim();
+      const d = trama.split(',');
 
-      if (d.length >= 5) {
-        let humSuelo = parseFloat(d[0]);
-        let temp = parseFloat(d[1]);
-        let humAire = parseFloat(d[2]);
-        let pctTanque = parseFloat(d[3]);
-        let caudal = parseFloat(d[4]);
-        let hora = new Date().toLocaleTimeString();
-
-        document.getElementById('tankFill').style.height = `${Math.min(Math.max(pctTanque, 0), 100)}%`;
-        document.getElementById('valTanqueTxt').innerText = `${Math.round(pctTanque)}%`;
-
-        let litrosRestantes = (pctTanque / 100) * 14.0;
-        let consumoDiarioEstimado = 1.2;
-        let diasAutonomia = Math.max(0, Math.floor(litrosRestantes / consumoDiarioEstimado));
-        
-        let elAut = document.getElementById('txtAutonomia');
-        if (elAut) {
-          elAut.innerText = pctTanque > 5 ? `Autonomía: ~${diasAutonomia} días` : 'Autonomía: Crítica';
-        }
-
-        let plantSvg = document.getElementById('soilPlantSvg');
-        if (plantSvg) {
-          if (humSuelo < 30) {
-            plantSvg.className = "soil-plant-svg dry";
-          } else {
-            plantSvg.className = "soil-plant-svg wet";
-          }
-        }
-        document.getElementById('valSueloTxt').innerText = `${Math.round(humSuelo)}%`;
-
-        let thermoLine = document.getElementById('thermoLine');
-        let thermoBulb = document.getElementById('thermoBulb');
-        if (thermoLine && thermoBulb) {
-          let pctTemp = Math.min(Math.max(((temp - 0) / 45) * 100, 10), 95);
-          thermoLine.style.height = `${pctTemp}%`;
-
-          let colorTemp = '#10b981';
-          if (temp < 18) colorTemp = '#38bdf8';
-          else if (temp >= 28 && temp <= 34) colorTemp = '#f59e0b';
-          else if (temp > 34) colorTemp = '#ef4444';
-
-          thermoLine.style.backgroundColor = colorTemp;
-          thermoBulb.style.backgroundColor = colorTemp;
-        }
-        document.getElementById('valTempTxt').innerText = `${temp.toFixed(1)}°C`;
-
-        let drops = [document.getElementById('drop1'), document.getElementById('drop2'), document.getElementById('drop3')];
-        drops.forEach(d => {
-          if (d) {
-            if (humAire > 60) d.classList.add('animating');
-            else d.classList.remove('animating');
-          }
-        });
-        document.getElementById('valHumAireTxt').innerText = `${Math.round(humAire)}%`;
-
-        let pipeCapsule = document.getElementById('pipeCapsule');
-        let pwmVal = (d.length >= 15) ? parseInt(d[14]) : 0;
-        let txtBomba = document.getElementById('txtEstadoBomba');
-        
-        if (pwmVal > 0) { 
-          txtBomba.innerText = "ON"; txtBomba.style.color = "var(--agri-green)";
-        } else { 
-          txtBomba.innerText = "OFF"; txtBomba.style.color = "var(--agri-red)"; 
-        }
-
-        if (caudal > 0.1) { pipeCapsule.classList.add('active'); } else { pipeCapsule.classList.remove('active'); }
-        document.getElementById('valFlujoTxt').innerText = `${caudal.toFixed(1)} L/m`;
-
-        actualizarPinesBoard(humSuelo, caudal, pwmVal);
-
-        let fFuga = document.getElementById('flagFuga');
-        if (pwmVal === 0 && caudal > 0.05) {
-          fFuga.innerText = "ALERTA FUGA"; fFuga.className = "val alert";
-          dispararAlertaGlobal("Alerta de Fuga", "Se detecta paso de agua con la bomba apagada.");
-        } else { fFuga.innerText = "OK (0 L/m)"; fFuga.className = "val"; }
-
-        let fTanque = document.getElementById('flagPisoTanque');
-        if (pctTanque <= 15) { 
-          fTanque.innerText = "CRÍTICO (<15%)"; fTanque.className = "val alert";
-          dispararAlertaGlobal("Tanque Bajo", "Atención: El nivel del tanque de reserva es crítico.");
-        } else { fTanque.innerText = "OK (>15%)"; fTanque.className = "val"; }
-
-        let score = 100;
-        if (humSuelo < 30) score -= 25;
-        if (temp > 35) score -= 20;
-        if (humAire > 80) score -= 15;
-        score = Math.max(score, 10);
-
-        document.getElementById('txtScoreVal').innerText = `${score}%`;
-        document.getElementById('scoreCircle').style.background = `conic-gradient(var(--agri-green) ${score}%, var(--inner-bg) 0)`;
-
-        if (caudal > 0) volAcumuladoL += (caudal / 60);
-        let energiaWh = volAcumuladoL * 0.18;
-        let opexSoles = (volAcumuladoL * 0.005) + ((volAcumuladoL / 100) * 0.18);
-
-        document.getElementById('txtVolumenTotal').innerText = `${volAcumuladoL.toFixed(2)} L`;
-        document.getElementById('txtEnergiaTotal').innerText = `${energiaWh.toFixed(1)} Wh`;
-        document.getElementById('txtOpexSoles').innerText = `S/ ${opexSoles.toFixed(2)}`;
-
-        lineChart.data.labels.push(hora);
-        lineChart.data.datasets[0].data.push(humSuelo);
-        lineChart.data.datasets[1].data.push(temp);
-        lineChart.data.datasets[2].data.push(humAire);
-
-        financialChart.data.labels.push(hora);
-        financialChart.data.datasets[0].data.push(volAcumuladoL.toFixed(2));
-        financialChart.data.datasets[1].data.push(opexSoles.toFixed(2));
-
-        if (lineChart.data.labels.length > 20) {
-          lineChart.data.labels.shift();
-          lineChart.data.datasets[0].data.shift();
-          lineChart.data.datasets[1].data.shift();
-          lineChart.data.datasets[2].data.shift();
-
-          financialChart.data.labels.shift();
-          financialChart.data.datasets[0].data.shift();
-          financialChart.data.datasets[1].data.shift();
-        }
-
-        lineChart.update();
-        financialChart.update();
-
-        guardarLecturaEnStorage({ hora, humSuelo, temp, humAire, pctTanque, caudal, volL: volAcumuladoL.toFixed(2), opex: opexSoles.toFixed(2), score });
+      // Protocolo V2.2: 25 campos de pines/sensores + 11 campos de estado = 36.
+      if (d.length !== 36) {
+        registrarLog(`⚠️ Trama BLE con estructura incorrecta (${d.length}/36 campos). Se descarta.`, 'warn');
+        return;
       }
+
+      if (d.some(campo => campo.trim() === '' || !Number.isFinite(Number(campo)))) {
+        registrarLog('⚠️ Trama BLE inválida: contiene campos numéricos no válidos. Registro descartado.', 'warn');
+        return;
+      }
+
+      const humSuelo = Number(d[0]);
+      const temp = Number(d[1]);
+      const humAire = Number(d[2]);
+      const pctTanque = Number(d[3]);
+      const caudal = Number(d[4]); // Valor instantáneo para el historial/diagnóstico.
+      const caudalFiltrado = Number(d[34]); // Valor suavizado para visualización.
+      const pwmVal = Number(d[14]);
+      const volArduino = Number(d[25]);
+      const energiaArduino = Number(d[26]);
+      const opexArduino = Number(d[27]);
+      const score = Number(d[28]);
+      const perfilIndex = Number(d[29]);
+      const modoViaje = Number(d[30]) === 1;
+      const bombaActiva = Number(d[31]) === 1;
+      const umbral = Number(d[32]);
+      const fugaActiva = Number(d[33]) === 1;
+      const bloqueoLluvia = Number(d[35]) === 1;
+      const timestamp = Date.now();
+      const hora = new Date(timestamp).toLocaleString('es-PE');
+
+      const valoresRango = [
+        humSuelo >= 0 && humSuelo <= 100,
+        temp >= -20 && temp <= 80,
+        humAire >= 0 && humAire <= 100,
+        pctTanque >= 0 && pctTanque <= 100,
+        caudal >= 0 && caudal <= 100,
+        caudalFiltrado >= 0 && caudalFiltrado <= 100,
+        pwmVal >= 0 && pwmVal <= 255,
+        volArduino >= 0 && energiaArduino >= 0 && opexArduino >= 0,
+        score >= 0 && score <= 100,
+        Number.isInteger(perfilIndex) && perfilIndex >= 0 && perfilIndex <= 6,
+        [0,1].includes(Number(d[30])) && [0,1].includes(Number(d[31])) && [0,1].includes(Number(d[33])) && [0,1].includes(Number(d[35])),
+        umbral >= 0 && umbral <= 100
+      ];
+      const analogosValidos = d.slice(5, 11).every(v => Number(v) >= 0 && Number(v) <= 16383);
+      const digitalesValidos = d.slice(11, 25).every((v, i) => i === 3 ? Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) <= 255 : [0,1].includes(Number(v)));
+      if (valoresRango.some(ok => !ok) || !analogosValidos || !digitalesValidos) {
+        registrarLog('⚠️ Trama BLE fuera de rango. Se descarta el registro.', 'warn');
+        return;
+      }
+
+      // Datos principales de sensores.
+      document.getElementById('tankFill').style.height = `${Math.min(Math.max(pctTanque, 0), 100)}%`;
+      document.getElementById('valTanqueTxt').innerText = `${Math.round(pctTanque)}%`;
+      const litrosRestantes = (pctTanque / 100) * 14.0;
+      const diasAutonomia = litrosRestantes / 0.20; // Mismo criterio único definido en firmware (0.20 L/día).
+      const elAut = document.getElementById('txtAutonomia');
+      if (elAut) elAut.innerText = pctTanque > 5 ? `Autonomía: ~${diasAutonomia.toFixed(1)} días` : 'Autonomía: Crítica';
+      const lblLluvia = document.getElementById('lblRainProb');
+      if (lblLluvia && bloqueoLluvia) lblLluvia.innerText = 'BLOQUEO METEOROLÓGICO ACTIVO';
+
+      const plantSvg = document.getElementById('soilPlantSvg');
+      if (plantSvg) plantSvg.className = humSuelo < 30 ? 'soil-plant-svg dry' : 'soil-plant-svg wet';
+      document.getElementById('valSueloTxt').innerText = `${Math.round(humSuelo)}%`;
+
+      const thermoLine = document.getElementById('thermoLine');
+      const thermoBulb = document.getElementById('thermoBulb');
+      if (thermoLine && thermoBulb) {
+        thermoLine.style.height = `${Math.min(Math.max((temp / 45) * 100, 10), 95)}%`;
+        let colorTemp = '#10b981';
+        if (temp < 18) colorTemp = '#38bdf8';
+        else if (temp >= 28 && temp <= 34) colorTemp = '#f59e0b';
+        else if (temp > 34) colorTemp = '#ef4444';
+        thermoLine.style.backgroundColor = colorTemp;
+        thermoBulb.style.backgroundColor = colorTemp;
+      }
+      document.getElementById('valTempTxt').innerText = `${temp.toFixed(1)}°C`;
+
+      const drops = [document.getElementById('drop1'), document.getElementById('drop2'), document.getElementById('drop3')];
+      drops.forEach(drop => {
+        if (drop) drop.classList.toggle('animating', humAire > 60);
+      });
+      document.getElementById('valHumAireTxt').innerText = `${Math.round(humAire)}%`;
+
+      // Estado real y PWM se reciben por campos distintos.
+      const txtBomba = document.getElementById('txtEstadoBomba');
+      txtBomba.innerText = bombaActiva ? `ON (${pwmVal}/255)` : 'OFF';
+      txtBomba.style.color = bombaActiva ? 'var(--agri-green)' : 'var(--agri-red)';
+      document.getElementById('txtSoftStart').innerText = bombaActiva && pwmVal < 255 ? 'Soft-Start en curso' : 'Soft-Start Ready';
+      const pipeCapsule = document.getElementById('pipeCapsule');
+      pipeCapsule.classList.toggle('active', caudalFiltrado > 0.1);
+      document.getElementById('valFlujoTxt').innerText = `${caudalFiltrado.toFixed(3)} L/min`; 
+      actualizarPinesBoard(d);
+
+      // La alerta de fuga llega confirmada por el firmware (dos ventanas consecutivas).
+      const fFuga = document.getElementById('flagFuga');
+      fFuga.innerText = fugaActiva ? 'ALERTA FUGA CONFIRMADA' : 'SIN FUGA';
+      fFuga.className = fugaActiva ? 'val alert' : 'val';
+      if (fugaActiva && !fugaAnterior) {
+        dispararAlertaGlobal('Alerta de Fuga', 'El Arduino confirmó caudal persistente con la bomba apagada.');
+      }
+      fugaAnterior = fugaActiva;
+
+      const fTanque = document.getElementById('flagPisoTanque');
+      const tanqueBajo = pctTanque <= 15;
+      fTanque.innerText = tanqueBajo ? 'CRÍTICO (≤15%)' : 'OK (>15%)';
+      fTanque.className = tanqueBajo ? 'val alert' : 'val';
+      if (tanqueBajo && !tanqueBajoAnterior) {
+        dispararAlertaGlobal('Tanque Bajo', 'Atención: El nivel del tanque de reserva es crítico.');
+      }
+      tanqueBajoAnterior = tanqueBajo;
+
+      // El score, volumen y OPEX son los acumulados calculados por Arduino, no estimaciones web.
+      volAcumuladoL = volArduino;
+      document.getElementById('txtScoreVal').innerText = `${Math.round(score)}%`;
+      document.getElementById('scoreCircle').style.background = `conic-gradient(var(--agri-green) ${score}%, var(--inner-bg) 0)`;
+      document.getElementById('txtVolumenTotal').innerText = `${volArduino.toFixed(3)} L`;
+      document.getElementById('txtEnergiaTotal').innerText = `${energiaArduino.toFixed(3)} Wh`;
+      document.getElementById('txtOpexSoles').innerText = `S/ ${opexArduino.toFixed(4)}`;
+
+      // Sincronizar el perfil visible con el perfil confirmado por Arduino.
+      const perfilesUI = ['PERFIL:RABANITO','PERFIL:SUCULENTAS','PERFIL:QUINUA','PERFIL:HORTALIZAS','PERFIL:ARROZ','PERFIL:LECHUGA','PERFIL:PERSONALIZADO'];
+      const selectPerfil = document.getElementById('selectPerfil');
+      if (selectPerfil && perfilesUI[perfilIndex]) selectPerfil.value = perfilesUI[perfilIndex];
+      const panelCustom = document.getElementById('panelSlidersPersonalizado');
+      if (panelCustom) panelCustom.style.display = perfilIndex === 6 ? 'flex' : 'none';
+      const btnViaje = document.getElementById('btnModoViaje');
+      if (btnViaje) btnViaje.classList.toggle('active-viaje', modoViaje);
+
+      const registro = {
+        timestamp, hora, humSuelo, temp, humAire, pctTanque, caudal, caudalFiltrado, pwm: pwmVal,
+        bomba: bombaActiva ? 1 : 0, fuga: fugaActiva ? 1 : 0, bloqueoLluvia: bloqueoLluvia ? 1 : 0,
+        volL: volArduino, energiaWh: energiaArduino, opex: opexArduino,
+        score, perfil: perfilIndex, modoViaje: modoViaje ? 1 : 0, umbral
+      };
+
+      lineChart.data.labels.push(hora);
+      lineChart.data.datasets[0].data.push(humSuelo);
+      lineChart.data.datasets[1].data.push(temp);
+      lineChart.data.datasets[2].data.push(humAire);
+      financialChart.data.labels.push(hora);
+      financialChart.data.datasets[0].data.push(volArduino);
+      financialChart.data.datasets[1].data.push(opexArduino);
+
+      while (lineChart.data.labels.length > 20) {
+        lineChart.data.labels.shift();
+        lineChart.data.datasets.forEach(ds => ds.data.shift());
+        financialChart.data.labels.shift();
+        financialChart.data.datasets.forEach(ds => ds.data.shift());
+      }
+      lineChart.update('none');
+      financialChart.update('none');
+      guardarLecturaEnStorage(registro);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
       crearGrillaLED12x8();
       initCharts();
       inicializarTema();
-      cargarHistorialGuardado();
+      historialDBPromise = abrirBaseDatosHistorial().catch(error => {
+        registrarLog(`⚠️ IndexedDB no disponible: ${error.message || error}`, 'warn');
+        return null;
+      });
+      historialCargaPromise = cargarHistorialGuardado();
       
       if (window.innerWidth <= 600) {
         document.body.classList.add('forced-mobile-view');
